@@ -5,6 +5,7 @@ import { Stock } from "../models/stock.model.js";
 import { StockTrade } from "../models/stocktrade.model.js";
 import { UserStocks } from "../models/userstocks.model.js";
 import { Wallet } from "../models/wallet.model.js";
+import { matchOrdersForStock } from "../utils/orderMatcher.js";
 
 // get all stocks with current price
 const getAllStocks = asyncHandler(async (req, res) => {
@@ -147,6 +148,11 @@ const placeOrder = asyncHandler(async (req, res) => {
                 { $inc: { quantity: -quantity, lockedQuantity: quantity } }
             )
         }
+    }
+
+    // Try to match the newly placed order
+    if (orderStatus === 'pending') {
+        await matchOrdersForStock(stockId);
     }
 
     return res
