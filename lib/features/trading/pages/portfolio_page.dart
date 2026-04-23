@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/state/app_state.dart';
 import 'markets_page.dart';
+import 'wallet_page.dart';
 
 class PortfolioPage extends ConsumerWidget {
   const PortfolioPage({super.key});
@@ -14,10 +15,16 @@ class PortfolioPage extends ConsumerWidget {
     final wallet = ref.watch(walletProvider);
 
     // Compute totals from live data
+    // Compute totals from live data
     double currentTotal = holdings.fold(0, (sum, h) => sum + h.quantity * h.currentPrice);
+    double totalInvested = holdings.fold(0, (sum, h) => sum + h.quantity * h.avgPrice);
     double previousTotal = holdings.fold(0, (sum, h) => sum + h.quantity * h.previousPrice);
-    double totalReturns = currentTotal - previousTotal;
-    double returnsPct = previousTotal == 0 ? 0 : (totalReturns / previousTotal) * 100;
+
+    double totalReturns = currentTotal - totalInvested;
+    double totalReturnsPct = totalInvested == 0 ? 0 : (totalReturns / totalInvested) * 100;
+    
+    double oneDayReturns = currentTotal - previousTotal;
+    double oneDayReturnsPct = previousTotal == 0 ? 0 : (oneDayReturns / previousTotal) * 100;
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
@@ -68,12 +75,12 @@ class PortfolioPage extends ConsumerWidget {
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 // Returns Dashboard
-                _buildReturnsDashboard(currentTotal, totalReturns, returnsPct),
+                _buildReturnsDashboard(currentTotal, totalReturns, totalReturnsPct, oneDayReturns, oneDayReturnsPct),
                 
                 const SizedBox(height: 32),
                 
                 // Claim Pending Steps (Campus Exchange Specific)
-                _buildClaimCard(wallet.stepsCount),
+                _buildClaimCard(context, wallet.stepsCount),
                 
                 const SizedBox(height: 32),
                 
@@ -95,7 +102,7 @@ class PortfolioPage extends ConsumerWidget {
                   )
                 else
                   ...holdings.map((h) {
-                    final invested = h.quantity * h.previousPrice;
+                    final invested = h.quantity * h.avgPrice;
                     final current = h.quantity * h.currentPrice;
                     final ret = current - invested;
                     final retPct = invested == 0 ? 0.0 : (ret / invested) * 100;
@@ -108,6 +115,7 @@ class PortfolioPage extends ConsumerWidget {
                       "${retPct >= 0 ? '+' : ''}${retPct.toStringAsFixed(2)}%",
                       h.currentPrice,
                       h.stockId,
+                      h.avgPrice
                     );
                   }).toList(),
                 
@@ -120,9 +128,13 @@ class PortfolioPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildReturnsDashboard(double currentTotal, double returns, double returnsPct) {
-    final isPositive = returns >= 0;
-    final Color retColor = isPositive ? const Color(0xFF00D09C) : const Color(0xFFEB5B3C);
+  Widget _buildReturnsDashboard(double currentTotal, double totalReturns, double totalReturnsPct, double oneDayReturns, double oneDayReturnsPct) {
+    final isTotalPositive = totalReturns >= 0;
+    final Color retColor = isTotalPositive ? const Color(0xFF00D09C) : const Color(0xFFEB5B3C);
+    
+    final is1dPositive = oneDayReturns >= 0;
+    final Color ret1dColor = is1dPositive ? const Color(0xFF00D09C) : const Color(0xFFEB5B3C);
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -149,8 +161,30 @@ class PortfolioPage extends ConsumerWidget {
                 children: [
                   Text("Total Returns", style: GoogleFonts.outfit(color: Colors.grey.shade400, fontSize: 13, fontWeight: FontWeight.w500)),
                   const SizedBox(height: 4),
-                  Text("${isPositive ? '+' : ''}${returns.toStringAsFixed(2)}", style: GoogleFonts.robotoMono(color: retColor, fontSize: 18, fontWeight: FontWeight.bold)),
-                  Text("${isPositive ? '+' : ''}${returnsPct.toStringAsFixed(2)}%", style: TextStyle(color: retColor, fontSize: 12, fontWeight: FontWeight.bold)),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Text("${isTotalPositive ? '+' : ''}${totalReturns.toStringAsFixed(2)}", style: GoogleFonts.robotoMono(color: retColor, fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(width: 4),
+                      Text("(${isTotalPositive ? '+' : ''}${totalReturnsPct.toStringAsFixed(2)}%)", style: TextStyle(color: retColor, fontSize: 12, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Divider(color: Colors.white10, height: 1),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text("1D Return", style: GoogleFonts.outfit(color: Colors.grey.shade400, fontSize: 13, fontWeight: FontWeight.w500)),
+              Row(
+                children: [
+                  Text("${is1dPositive ? '+' : ''}${oneDayReturns.toStringAsFixed(2)}", style: GoogleFonts.robotoMono(color: ret1dColor, fontSize: 14, fontWeight: FontWeight.bold)),
+                  const SizedBox(width: 8),
+                  Text("(${is1dPositive ? '+' : ''}${oneDayReturnsPct.toStringAsFixed(2)}%)", style: TextStyle(color: ret1dColor, fontSize: 12, fontWeight: FontWeight.bold)),
                 ],
               ),
             ],
@@ -160,18 +194,22 @@ class PortfolioPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildClaimCard(int pendingSteps) {
+  Widget _buildClaimCard(BuildContext context, int pendingSteps) {
     final coinsEquivalent = pendingSteps / 100;
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF2962FF), Color(0xFF0D47A1)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(context, MaterialPageRoute(builder: (context) => const WalletPage()));
+      },
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF2962FF), Color(0xFF0D47A1)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
         ),
-        borderRadius: BorderRadius.circular(16),
-      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -188,10 +226,10 @@ class PortfolioPage extends ConsumerWidget {
           Text("Go to Wallet →", style: GoogleFonts.outfit(color: Colors.white70, fontSize: 12)),
         ],
       ),
-    );
+    ));
   }
 
-  Widget _buildHoldingRow(BuildContext context, String name, String qty, String value, String returnAmount, String returnPercent, double price, String stockId) {
+  Widget _buildHoldingRow(BuildContext context, String name, String qty, String value, String returnAmount, String returnPercent, double price, String stockId, double avgPrice) {
     final bool isPositive = returnAmount.startsWith('+');
     final Color trendColor = isPositive ? const Color(0xFF00D09C) : const Color(0xFFEB5B3C);
 
@@ -228,7 +266,13 @@ class PortfolioPage extends ConsumerWidget {
                     children: [
                       Text(name, style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
                       const SizedBox(height: 4),
-                      Text("$qty Qty", style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+                      Row(
+                        children: [
+                          Text("$qty Qty", style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+                          const SizedBox(width: 8),
+                          Text("• Avg: ${(avgPrice).toStringAsFixed(2)} CMX", style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+                        ],
+                      ),
                     ],
                   ),
                   Column(

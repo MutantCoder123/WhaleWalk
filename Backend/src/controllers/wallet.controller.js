@@ -3,6 +3,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { Wallet } from "../models/wallet.model.js";
 import { Steps } from "../models/step.model.js";
+import { Transaction } from "../models/transaction.model.js";
 
 const getWalletInfo = asyncHandler(async (req, res) => {
     const wallet = await Wallet.findOne({ username: req.user.username })
@@ -46,14 +47,21 @@ const convertSteps = asyncHandler(async (req, res) => {
     const updatedSteps = await Steps.findOneAndUpdate(
         { username },
         { $inc: { stepsCount: -stepsToConvert } },
-        { new: true }
+        { returnDocument: 'after' }
     )
 
     const updatedWallet = await Wallet.findOneAndUpdate(
         { username },
         { $inc: { campusCoins: coinsEarned } },
-        { new: true }
+        { returnDocument: 'after' }
     )
+
+    await Transaction.create({
+        userId: req.user._id,
+        title: "Converted Steps",
+        amount: coinsEarned,
+        isPositive: true
+    })
 
     return res
         .status(200)
@@ -89,8 +97,15 @@ const convertOrbs = asyncHandler(async (req, res) => {
                 orbs: -orbsToConvert
             }
         },
-        { new: true }
+        { returnDocument: 'after' }
     )
+
+    await Transaction.create({
+        userId: req.user._id,
+        title: "Converted Orbs",
+        amount: coinsEarned,
+        isPositive: true
+    })
 
     return res
         .status(200)
@@ -116,4 +131,14 @@ const getLeaderBoard = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, leaderboard, "Leaderboard fetched successfully"))
 })
 
-export { getWalletInfo, convertSteps, convertOrbs, getLeaderBoard }
+const getTransactions = asyncHandler(async (req, res) => {
+    const transactions = await Transaction.find({ userId: req.user._id })
+        .sort({ createdAt: -1 })
+        .limit(50); // Get latest 50 txns
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, transactions, "Transactions fetched successfully"));
+})
+
+export { getWalletInfo, convertSteps, convertOrbs, getLeaderBoard, getTransactions }

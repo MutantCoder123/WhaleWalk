@@ -67,15 +67,38 @@ final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) => Aut
 // =============================================================================
 class WalletData {
   final double campusCoins;
-  final int stepsCount;
   final int orbs;
-  const WalletData({this.campusCoins = 10000, this.stepsCount = 10000, this.orbs = 14});
+  final int stepsCount;
+  const WalletData({this.campusCoins = 10000, this.orbs = 14, this.stepsCount = 10000});
 
   WalletData copyWith({double? campusCoins, int? stepsCount, int? orbs}) => WalletData(
     campusCoins: campusCoins ?? this.campusCoins,
     stepsCount: stepsCount ?? this.stepsCount,
     orbs: orbs ?? this.orbs,
   );
+}
+
+class Transaction {
+  final String title;
+  final double amount;
+  final bool isPositive;
+  final DateTime createdAt;
+
+  Transaction({
+    required this.title,
+    required this.amount,
+    required this.isPositive,
+    required this.createdAt,
+  });
+
+  factory Transaction.fromJson(Map<String, dynamic> json) {
+    return Transaction(
+      title: json['title'] ?? 'Unknown',
+      amount: (json['amount'] ?? 0.0).toDouble(),
+      isPositive: json['isPositive'] ?? true,
+      createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
+    );
+  }
 }
 
 class WalletNotifier extends StateNotifier<WalletData> {
@@ -131,6 +154,11 @@ class WalletNotifier extends StateNotifier<WalletData> {
 
 final walletProvider = StateNotifierProvider<WalletNotifier, WalletData>((ref) => WalletNotifier());
 
+final transactionsProvider = FutureProvider<List<Transaction>>((ref) async {
+  final List<dynamic> response = await apiService.getTransactions();
+  return response.map((t) => Transaction.fromJson(t as Map<String, dynamic>)).toList();
+});
+
 // Convenience providers that pages already reference
 final currentCoinsProvider = Provider<double>((ref) => ref.watch(walletProvider).campusCoins);
 final currentStepsProvider = Provider<int>((ref) => ref.watch(walletProvider).stepsCount);
@@ -145,10 +173,11 @@ class Stock {
   final double currentPrice;
   final double previousPrice;
   final double percentageChange;
+  final double lastDayPercentageChange;
   final bool isUp;
   final List<double> history;
   Stock(this.name, this.symbol, this.currentPrice, this.previousPrice,
-      this.percentageChange, this.isUp, this.history);
+      this.percentageChange, this.lastDayPercentageChange, this.isUp, this.history);
 }
 
 class MarketsNotifier extends StateNotifier<List<Stock>> {
@@ -166,6 +195,7 @@ class MarketsNotifier extends StateNotifier<List<Stock>> {
         (json['previousPrice'] ?? 0.0).toDouble(),
         ((json['price'] ?? 1.0) - (json['previousPrice'] ?? 0.0)) /
             ((json['previousPrice'] == 0 ? 1 : json['previousPrice'])) * 100,
+        (json['lastDayPercentageChange'] ?? 0.0).toDouble(),
         (json['price'] ?? 0.0) >= (json['previousPrice'] ?? 0.0),
         (json['history'] as List?)?.map((e) => (e as num).toDouble()).toList() ?? [0.0],
       )).toList();
@@ -190,12 +220,14 @@ class PortfolioHolding {
   final String name;
   final double currentPrice;
   final double previousPrice;
+  final double avgPrice;
   const PortfolioHolding({
     required this.stockId,
     required this.quantity,
     required this.name,
     required this.currentPrice,
     required this.previousPrice,
+    required this.avgPrice,
   });
 }
 
@@ -226,6 +258,7 @@ class PortfolioNotifier extends StateNotifier<List<PortfolioHolding>> {
               name: stock?['name'] ?? p['stockId'],
               currentPrice: (stock?['price'] ?? 0.0).toDouble(),
               previousPrice: (stock?['previousPrice'] ?? 0.0).toDouble(),
+              avgPrice: (p['avgPrice'] ?? stock?['price'] ?? 0.0).toDouble(),
             );
           }).toList();
     } catch (e) {

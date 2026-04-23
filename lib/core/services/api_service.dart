@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  static const String baseUrl = 'https://campusexchange-odr9.onrender.com/api/v1';
+  static const String baseUrl = 'http://192.168.0.106:8000/api/v1';
 
   // ---------------------------------------------------------------------------
   // Token Management
@@ -188,6 +188,11 @@ class ApiService {
 
   Future<List<dynamic>> getLeaderboard() async {
     final res = await get('/wallet/leaderboard');
+    return res['data'] ?? [];
+  }
+
+  Future<List<dynamic>> getTransactions() async {
+    final res = await get('/wallet/transactions');
     return res['data'] ?? [];
   }
 

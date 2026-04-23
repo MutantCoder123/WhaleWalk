@@ -215,7 +215,7 @@ const resolveBet = asyncHandler(async (req, res) => {
             status: "closed", 
             result: uppercaseResult 
         },
-        { new: true }
+        { returnDocument: 'after' }
     )
 
     return res

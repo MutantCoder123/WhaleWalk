@@ -29,6 +29,10 @@ const stockSchema = new Schema(
             type: Number,
             default: 0,
         },
+        lastDayPercentageChange: {
+            type: Number,
+            default: 0,
+        },
         history: {
             type: [Number],
             default: [],

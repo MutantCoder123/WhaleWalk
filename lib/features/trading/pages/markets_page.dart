@@ -7,12 +7,28 @@ import '../../../core/state/app_state.dart';
 import '../../../core/services/api_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class MarketsPage extends ConsumerWidget {
+class MarketsPage extends ConsumerStatefulWidget {
   const MarketsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final stocks = ref.watch(marketsProvider);
+  ConsumerState<MarketsPage> createState() => _MarketsPageState();
+}
+
+class _MarketsPageState extends ConsumerState<MarketsPage> {
+  String _selectedFilter = "All";
+
+  @override
+  Widget build(BuildContext context) {
+    final stocksSource = ref.watch(marketsProvider);
+    
+    // Sort logic
+    List<Stock> stocks = List.from(stocksSource);
+    if (_selectedFilter == "Top Gainers") {
+      stocks.sort((a, b) => b.lastDayPercentageChange.compareTo(a.lastDayPercentageChange));
+    } else if (_selectedFilter == "Top Losers") {
+      stocks.sort((a, b) => a.lastDayPercentageChange.compareTo(b.lastDayPercentageChange));
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
       body: CustomScrollView(
@@ -60,10 +76,10 @@ class MarketsPage extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
               child: Row(
                 children: [
-                   _buildChip("All", true),
-                   _buildChip("Top Gainers", false),
-                   _buildChip("Top Losers", false),
-                   _buildChip("Indexes", false),
+                   _buildChip("All"),
+                   _buildChip("Top Gainers"),
+                   _buildChip("Top Losers"),
+                   _buildChip("Indexes"),
                 ],
               ),
             ),
@@ -96,21 +112,29 @@ class MarketsPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildChip(String label, bool isSelected) {
-    return Container(
-      margin: const EdgeInsets.only(right: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      decoration: BoxDecoration(
-        color: isSelected ? Colors.white : const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: isSelected ? Colors.white : Colors.white10),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: isSelected ? Colors.black : Colors.white,
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-          fontSize: 13,
+  Widget _buildChip(String label) {
+    final bool isSelected = _selectedFilter == label;
+    return GestureDetector(
+      onTap: () {
+        if (label != "Indexes") { // Just ignore dummy indexes for now
+          setState(() => _selectedFilter = label);
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(right: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white : const Color(0xFF1E1E1E),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: isSelected ? Colors.white : Colors.white10),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.black : Colors.white,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            fontSize: 13,
+          ),
         ),
       ),
     );
@@ -376,6 +400,7 @@ class _TradeSheetState extends ConsumerState<TradeSheet> {
       ref.read(completedOrdersProvider.notifier).refresh();
       ref.read(portfolioProvider.notifier).refresh();
       ref.read(walletProvider.notifier).refresh();
+      ref.invalidate(transactionsProvider);
 
       if (mounted) {
         Navigator.pop(context);

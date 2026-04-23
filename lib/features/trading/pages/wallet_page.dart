@@ -70,6 +70,10 @@ class _WalletPageState extends ConsumerState<WalletPage> {
         }
       }
 
+      if (totalCoinsEarned > 0) {
+        ref.invalidate(transactionsProvider);
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -102,6 +106,8 @@ class _WalletPageState extends ConsumerState<WalletPage> {
     int remainingSteps = availableSteps - typedSteps;
     int remainingOrbs = availableOrbs - typedOrbs;
 
+    final txnsAsync = ref.watch(transactionsProvider);
+
     return Theme(
       data: ThemeData.dark(),
       child: Scaffold(
@@ -113,7 +119,10 @@ class _WalletPageState extends ConsumerState<WalletPage> {
           actions: [
             IconButton(
               icon: const Icon(Icons.refresh, color: Colors.white54),
-              onPressed: () => ref.read(walletProvider.notifier).refresh(),
+              onPressed: () {
+                ref.read(walletProvider.notifier).refresh();
+                ref.invalidate(transactionsProvider);
+              },
             ),
           ],
         ),
@@ -235,10 +244,32 @@ class _WalletPageState extends ConsumerState<WalletPage> {
             const SizedBox(height: 32),
             Text("TRANSACTION HISTORY", style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade500, letterSpacing: 1.5)),
             const SizedBox(height: 16),
-            _buildTxRow("Conversion", "+120 Coins", "Today, 10:45 AM", true),
-            _buildTxRow("Bought Canteen Share", "-45 Coins", "Yesterday, 04:30 PM", false),
-            _buildTxRow("Conversion", "+185 Coins", "Yesterday, 09:15 AM", true),
-            _buildTxRow("Sold Gym Pass", "+10 Coins", "Wed, 02:10 PM", true),
+            
+            txnsAsync.when(
+              data: (txns) {
+                if (txns.isEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: Text("No transactions yet.", style: TextStyle(color: Colors.grey.shade600)),
+                    ),
+                  );
+                }
+                return Column(
+                  children: txns.map((t) {
+                    final isToday = t.createdAt.day == DateTime.now().day;
+                    final timePrefix = isToday ? "Today," : "${t.createdAt.day}/${t.createdAt.month}";
+                    final timeString = "$timePrefix ${t.createdAt.hour.toString().padLeft(2, '0')}:${t.createdAt.minute.toString().padLeft(2, '0')}";
+                    
+                    return _buildTxRow(t.title, "${t.isPositive ? '+' : ''}${t.amount.toStringAsFixed(2)} Coins", timeString, t.isPositive);
+                  }).toList(),
+                );
+              },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (err, stack) => Center(child: Text('Error: $err', style: const TextStyle(color: Colors.red))),
+            ),
+            
+            const SizedBox(height: 48), // Bottom padding
           ],
         ),
       ),

@@ -2,6 +2,8 @@ import { StockTrade } from "../models/stocktrade.model.js"
 import { UserStocks } from "../models/userstocks.model.js"
 import { Wallet } from "../models/wallet.model.js"
 import { Stock } from "../models/stock.model.js"
+import { User } from "../models/user.model.js"
+import { Transaction } from "../models/transaction.model.js"
 
 const matchOrdersForStock = async (stockId) => {
     console.log(`Running stock trade execution for stock ${stockId}...`)
@@ -44,12 +46,34 @@ const matchOrdersForStock = async (stockId) => {
                     { username: buyOrder.username },
                     { $inc: { campusCoins: buyerRefund, lockedCoins: -buyerLockDeduction } }
                 );
+                
+                if (buyerRefund > 0) {
+                    const buyerUser = await User.findOne({ username: buyOrder.username });
+                    if (buyerUser) {
+                        await Transaction.create({
+                            userId: buyerUser._id,
+                            title: `Escrow Refund ${stockId}`,
+                            amount: buyerRefund,
+                            isPositive: true
+                        });
+                    }
+                }
 
                 // 2. add coins to seller
                 await Wallet.findOneAndUpdate(
                     { username: sellOrder.username },
                     { $inc: { campusCoins: totalCost } }
                 );
+
+                const sellerUser = await User.findOne({ username: sellOrder.username });
+                if (sellerUser) {
+                    await Transaction.create({
+                        userId: sellerUser._id,
+                        title: `Limit Sold ${stockId}`,
+                        amount: totalCost,
+                        isPositive: true
+                    });
+                }
 
                 // 3. add shares to buyer
                 const buyerStock = await UserStocks.findOne({
@@ -58,9 +82,17 @@ const matchOrdersForStock = async (stockId) => {
                 })
 
                 if (buyerStock) {
+                    const oldTotalCost = buyerStock.quantity * buyerStock.avgPrice;
+                    const newTotalCost = matchedQty * executionPrice;
+                    const newAvgPrice = (oldTotalCost + newTotalCost) / (buyerStock.quantity + matchedQty);
+
                     await UserStocks.findOneAndUpdate(
                         { username: buyOrder.username, stockId },
-                        { $inc: { quantity: matchedQty } }
+                        { 
+                            $inc: { quantity: matchedQty },
+                            $set: { avgPrice: newAvgPrice }
+                        },
+                        { returnDocument: 'after' }
                     )
                 } else {
                     await UserStocks.create({

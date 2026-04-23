@@ -26,7 +26,7 @@ const updateSteps = asyncHandler(async (req, res) => {
     const steps = await Steps.findOneAndUpdate(
         { username },
         { $set: { stepsCount } },
-        { new: true }
+        { returnDocument: 'after' }
     )
 
     if (!steps) {
