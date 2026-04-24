@@ -412,6 +412,31 @@ class ApiService {
     return res['data'] ?? [];
   }
 
+  Future<Map<String, dynamic>> createTimedChallenge({
+    required String title,
+    required String description,
+    required String metric,
+    required int targetValue,
+    required String duration,
+    int intensity = 1,
+    int rewardCoins = 0,
+    int rewardOrbs = 0,
+    String? rewardItemId,
+  }) async {
+    final res = await post('/challenges/timed', {
+      'title': title,
+      'description': description,
+      'metric': metric,
+      'targetValue': targetValue,
+      'duration': duration,
+      'intensity': intensity,
+      'rewardCoins': rewardCoins,
+      'rewardOrbs': rewardOrbs,
+      if (rewardItemId != null) 'rewardItemId': rewardItemId,
+    });
+    return res['data'];
+  }
+
   Future<Map<String, dynamic>> claimChallengeReward(String challengeId) async {
     final res = await post('/challenges/claim', {'challengeId': challengeId});
     return res['data'];

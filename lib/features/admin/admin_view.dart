@@ -22,6 +22,7 @@ class _AdminViewState extends ConsumerState<AdminView> {
   List<dynamic> _stocks = [];
   List<dynamic> _bets = [];
   List<dynamic> _zones = [];
+  List<dynamic> _tasks = [];
 
   List<dynamic> get _openChallenges =>
       _bets.where((bet) => bet['status'] == 'open').toList();
@@ -43,12 +44,14 @@ class _AdminViewState extends ConsumerState<AdminView> {
         apiService.fetchStocks(),
         apiService.fetchBets(),
         apiService.fetchZones(),
+        apiService.fetchTimedChallenges(),
       ]);
 
       setState(() {
         _stocks = results[0];
         _bets = results[1];
         _zones = results[2];
+        _tasks = results[3];
       });
 
     } catch (e) {
@@ -92,6 +95,24 @@ class _AdminViewState extends ConsumerState<AdminView> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Bet created successfully'),
+          backgroundColor: Color(0xFF00D09C),
+        ),
+      );
+    }
+  }
+
+  Future<void> _openCreateTaskDialog() async {
+    final created = await showDialog<bool>(
+      context: context,
+      builder: (context) => const _CreateTaskDialog(),
+    );
+
+    if (created == true) {
+      await _loadAdminData();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Task Challenge created successfully'),
           backgroundColor: Color(0xFF00D09C),
         ),
       );
@@ -291,11 +312,9 @@ class _AdminViewState extends ConsumerState<AdminView> {
               icon: Icons.flag_rounded,
               title: 'CHALLENGES\nMGNT',
               color: Colors.orange,
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => _AdminBetsPage(
-                title: 'CHALLENGES',
-                bets: _bets.where((b) => b['isTrending'] == true).toList(), 
-                onAdd: () => _openCreateBetDialog(title: 'Create Challenge'),
-                onSetResult: _openSetResultDialog,
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => _AdminTasksPage(
+                tasks: _tasks, 
+                onAdd: _openCreateTaskDialog,
               ))),
             ),
             _SquareActionCard(
@@ -304,7 +323,7 @@ class _AdminViewState extends ConsumerState<AdminView> {
               color: Colors.purple,
               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => _AdminBetsPage(
                 title: 'BETS',
-                bets: _bets.where((b) => b['isTrending'] != true).toList(), 
+                bets: _bets, 
                 onAdd: () => _openCreateBetDialog(title: 'Create Bet'),
                 onSetResult: _openSetResultDialog,
               ))),
@@ -1437,22 +1456,211 @@ class _UserLocationMarker extends StatelessWidget {
             shape: BoxShape.circle,
           ),
         ),
-        Container(
-          width: 14,
-          height: 14,
-          decoration: const BoxDecoration(
-            color: Color(0xFF2962FF),
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black26,
-                blurRadius: 4,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-        ),
       ],
     );
   }
 }
+
+class _AdminTasksPage extends StatelessWidget {
+  final List<dynamic> tasks;
+  final VoidCallback onAdd;
+
+  const _AdminTasksPage({
+    required this.tasks,
+    required this.onAdd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF121212),
+      appBar: AppBar(
+        title: const Text('CHALLENGES MANAGEMENT'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          _CreateButton(
+            label: 'ADD NEW CHALLENGE',
+            icon: Icons.add_task_rounded,
+            onPressed: onAdd,
+          ),
+          const SizedBox(height: 24),
+          if (tasks.isEmpty)
+             const _EmptyState(
+              icon: Icons.assignment_late_outlined,
+              title: 'No tasks found',
+              message: 'Define some to start tracking.',
+            )
+          else
+            ...tasks.map((task) {
+              final isClosed = task['status'] == 'closed';
+              return _AdminTile(
+                icon: Icons.assignment_rounded,
+                accent: Colors.orangeAccent,
+                title: task['title'] ?? 'No title',
+                subtitle: 'ID: ${task['id']}',
+                trailing: '${task['rewardCoins'] ?? 0} CMX',
+                meta: 'METRIC: ${task['metric']} | STATUS: ${task['status']}',
+              );
+            }),
+        ],
+      ),
+    );
+  }
+}
+
+class _CreateTaskDialog extends StatefulWidget {
+  const _CreateTaskDialog();
+
+  @override
+  State<_CreateTaskDialog> createState() => _CreateTaskDialogState();
+}
+
+class _CreateTaskDialogState extends State<_CreateTaskDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _titleController = TextEditingController();
+  final _descController = TextEditingController();
+  final _targetController = TextEditingController();
+  final _coinsController = TextEditingController(text: '0');
+  final _orbsController = TextEditingController(text: '0');
+
+  String _metric = 'STEPS';
+  String _duration = 'DAILY';
+  bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descController.dispose();
+    _targetController.dispose();
+    _coinsController.dispose();
+    _orbsController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSubmitting = true);
+    try {
+      await apiService.createTimedChallenge(
+        title: _titleController.text.trim(),
+        description: _descController.text.trim(),
+        metric: _metric,
+        targetValue: int.parse(_targetController.text.trim()),
+        duration: _duration,
+        rewardCoins: int.tryParse(_coinsController.text.trim()) ?? 0,
+        rewardOrbs: int.tryParse(_orbsController.text.trim()) ?? 0,
+      );
+
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      _showError(context, e);
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _AdminDialogShell(
+      title: 'Create Task Challenge',
+      isSubmitting: _isSubmitting,
+      submitLabel: 'CREATE',
+      onSubmit: _submit,
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _AdminTextField(
+              controller: _titleController,
+              label: 'Title',
+              icon: Icons.title_rounded,
+              validator: _required,
+            ),
+            const SizedBox(height: 12),
+            _AdminTextField(
+              controller: _descController,
+              label: 'Description',
+              icon: Icons.notes_rounded,
+              maxLines: 2,
+              validator: _required,
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: _metric,
+                    decoration: _inputDecoration('Metric', Icons.bar_chart_rounded),
+                    dropdownColor: const Color(0xFF1E1E1E),
+                    items: const [
+                      DropdownMenuItem(value: 'STEPS', child: Text('STEPS')),
+                      DropdownMenuItem(value: 'BETS_WON', child: Text('BETS WON')),
+                      DropdownMenuItem(value: 'COINS_EARNED', child: Text('COINS EARNED')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) setState(() => _metric = value);
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: _duration,
+                    decoration: _inputDecoration('Duration', Icons.timer_rounded),
+                    dropdownColor: const Color(0xFF1E1E1E),
+                    items: const [
+                      DropdownMenuItem(value: 'DAILY', child: Text('DAILY')),
+                      DropdownMenuItem(value: 'WEEKLY', child: Text('WEEKLY')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) setState(() => _duration = value);
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _AdminTextField(
+              controller: _targetController,
+              label: 'Target Value',
+              icon: Icons.flag_rounded,
+              keyboardType: TextInputType.number,
+              validator: _positiveNumber,
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _AdminTextField(
+                    controller: _coinsController,
+                    label: 'Reward Coins',
+                    icon: Icons.monetization_on_rounded,
+                    keyboardType: TextInputType.number,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _AdminTextField(
+                    controller: _orbsController,
+                    label: 'Reward Orbs',
+                    icon: Icons.bubble_chart_rounded,
+                    keyboardType: TextInputType.number,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+

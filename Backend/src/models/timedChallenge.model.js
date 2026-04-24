@@ -39,6 +39,10 @@ const timedChallengeSchema = new Schema(
             type: Number,
             default: 0,
         },
+        rewardItemId: {
+            type: String, // ID of a store item (e.g. Badge or Title)
+            default: null,
+        },
         isActive: {
             type: Boolean,
             default: true,

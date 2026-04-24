@@ -24,13 +24,13 @@ const getTimedChallenges = asyncHandler(async (req, res) => {
             let startValue = 0;
             if (challenge.metric === 'STEPS') {
                 const userSteps = await Steps.findOne({ username });
-                startValue = userSteps ? userSteps.totalStepsWalked : 0;
+                startValue = userSteps?.totalStepsWalked || 0;
             } else if (challenge.metric === 'BETS_WON') {
                 const userStats = await UserStats.findOne({ username });
-                startValue = userStats ? userStats.betsWon : 0;
+                startValue = userStats?.betsWon || 0;
             } else if (challenge.metric === 'COINS_EARNED') {
                 const wallet = await Wallet.findOne({ username });
-                startValue = wallet ? wallet.campusCoins : 0;
+                startValue = wallet?.campusCoins || 0;
             }
 
             const durationDays = challenge.duration === 'DAILY' ? 1 : 7;
@@ -52,16 +52,16 @@ const getTimedChallenges = asyncHandler(async (req, res) => {
             let currentTotal = 0;
             if (challenge.metric === 'STEPS') {
                 const userSteps = await Steps.findOne({ username });
-                currentTotal = userSteps ? userSteps.totalStepsWalked : 0;
+                currentTotal = userSteps?.totalStepsWalked || 0;
             } else if (challenge.metric === 'BETS_WON') {
                 const userStats = await UserStats.findOne({ username });
-                currentTotal = userStats ? userStats.betsWon : 0;
+                currentTotal = userStats?.betsWon || 0;
             } else if (challenge.metric === 'COINS_EARNED') {
                 const wallet = await Wallet.findOne({ username });
-                currentTotal = wallet ? wallet.campusCoins : 0;
+                currentTotal = wallet?.campusCoins || 0;
             }
 
-            const diff = Math.max(0, currentTotal - progress.startValue);
+            const diff = Math.max(0, currentTotal - (progress.startValue || 0));
             progress.currentValue = diff;
 
             if (progress.currentValue >= challenge.targetValue) {
@@ -121,4 +121,27 @@ const claimChallengeReward = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, { rewardCoins: challenge.rewardCoins, rewardOrbs: challenge.rewardOrbs }, "Reward claimed successfully"));
 });
 
-export { getTimedChallenges, claimChallengeReward };
+const createTimedChallenge = asyncHandler(async (req, res) => {
+    const { title, description, metric, targetValue, duration, intensity, rewardCoins, rewardOrbs, rewardItemId } = req.body;
+
+    if (!title || !description || !metric || !targetValue || !duration) {
+        throw new ApiError(400, "All required fields (title, description, metric, targetValue, duration) must be provided");
+    }
+
+    const challenge = await TimedChallenge.create({
+        title,
+        description,
+        metric,
+        targetValue,
+        duration,
+        intensity: intensity || 1,
+        rewardCoins: rewardCoins || 0,
+        rewardOrbs: rewardOrbs || 0,
+        rewardItemId: rewardItemId || null,
+        isActive: true
+    });
+
+    return res.status(201).json(new ApiResponse(201, challenge, "Timed challenge created successfully"));
+});
+
+export { getTimedChallenges, claimChallengeReward, createTimedChallenge };
