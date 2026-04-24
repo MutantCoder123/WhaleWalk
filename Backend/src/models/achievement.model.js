@@ -31,6 +31,9 @@ const achievementSchema = new Schema(
         isActive: {
             type: Boolean,
             default: true,
+        },
+        imageUrl: {
+            type: String,
         }
     },
     {

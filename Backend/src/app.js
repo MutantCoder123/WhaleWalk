@@ -2,6 +2,7 @@ import express from "express"
 import cors from "cors"
 import cookieParser from "cookie-parser"
 import dotenv from "dotenv"
+import path from "path"
 
 dotenv.config({
     path: "./.env"
@@ -19,7 +20,7 @@ app.use(cors({
 app.use(express.json({limit: "25kb"}))
 app.use(express.urlencoded({ extended: true, limit: "16kb" }))
 app.use(express.static("public"))
-app.use("/media", express.static("media"))
+app.use("/media", express.static(path.join(process.cwd(), "media")))
 app.use(cookieParser())
 
 app.get("/health", (_, res) => {

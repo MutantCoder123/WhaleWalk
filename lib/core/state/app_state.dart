@@ -990,6 +990,7 @@ class AchievementData {
   final int rewardCoins;
   final int rewardOrbs;
   final bool isUnlocked;
+  final String? imageUrl;
 
   const AchievementData({
     required this.id,
@@ -1000,6 +1001,7 @@ class AchievementData {
     required this.rewardCoins,
     required this.rewardOrbs,
     required this.isUnlocked,
+    this.imageUrl,
   });
 }
 
@@ -1050,6 +1052,7 @@ class AchievementNotifier extends StateNotifier<AchievementState> {
           rewardCoins: (item['rewardCoins'] ?? 0).toInt(),
           rewardOrbs: (item['rewardOrbs'] ?? 0).toInt(),
           isUnlocked: item['isUnlocked'] ?? false,
+          imageUrl: item['imageUrl'],
         );
       }).toList();
 

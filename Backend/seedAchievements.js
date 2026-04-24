@@ -48,8 +48,15 @@ const seedDB = async () => {
         await mongoose.connect(`${connectionString}/campusexchangedb`);
         console.log("Connected to MongoDB (campusexchangedb) for seeding...");
 
+        const achievementsWithImages = initialAchievements.map(ach => {
+            let imageUrl = "media/images/t1badge.png";
+            if (ach.metric === "BETS_PLACED") imageUrl = "media/images/t2badge.png";
+            else if (ach.metric === "BETS_WON") imageUrl = "media/images/t3badge.png";
+            return { ...ach, imageUrl };
+        });
+
         await Achievement.deleteMany({});
-        await Achievement.insertMany(initialAchievements);
+        await Achievement.insertMany(achievementsWithImages);
 
         console.log("Successfully seeded achievements!");
     } catch (error) {

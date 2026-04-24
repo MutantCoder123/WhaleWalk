@@ -56,7 +56,7 @@ const storeItems = [
         price: 1500,
         category: "badge",
         rarity: "rare",
-        imageUrl: "/media/images/t1badge.png"
+        imageUrl: "media/images/t1badge.png"
     },
     {
         name: "Golden Halo",
@@ -64,7 +64,7 @@ const storeItems = [
         price: 5000,
         category: "badge",
         rarity: "legendary",
-        imageUrl: "/media/images/t2badge.png"
+        imageUrl: "media/images/t2badge.png"
     },
     {
         name: "Cyber Hexagon",
@@ -72,7 +72,7 @@ const storeItems = [
         price: 2500,
         category: "badge",
         rarity: "epic",
-        imageUrl: "/media/images/t3badge.png"
+        imageUrl: "media/images/t3badge.png"
     },
     {
         name: "Void Portal",
@@ -80,7 +80,7 @@ const storeItems = [
         price: 12000,
         category: "badge",
         rarity: "mythic",
-        imageUrl: "/media/images/t1badge.png"
+        imageUrl: "media/images/t1badge.png"
     },
     {
         name: "Iron Ring",
@@ -88,7 +88,7 @@ const storeItems = [
         price: 200,
         category: "badge",
         rarity: "common",
-        imageUrl: "/media/images/t2badge.png"
+        imageUrl: "media/images/t2badge.png"
     },
     {
         name: "Diamond Shield",
@@ -96,7 +96,7 @@ const storeItems = [
         price: 50000,
         category: "badge",
         rarity: "mythic",
-        imageUrl: "/media/images/t3badge.png"
+        imageUrl: "media/images/t3badge.png"
     }
 ];
 

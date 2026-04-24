@@ -248,7 +248,26 @@ class _ProfileViewState extends ConsumerState<ProfileView> with SingleTickerProv
       decoration: BoxDecoration(color: const Color(0xFF16171B), borderRadius: BorderRadius.circular(16), border: Border.all(color: ach.isUnlocked ? Colors.amber.withOpacity(0.3) : Colors.white.withOpacity(0.05))),
       child: Row(
         children: [
-          Icon(Icons.stars_rounded, color: ach.isUnlocked ? Colors.amber : Colors.grey.shade700, size: 32),
+          ach.imageUrl != null && ach.imageUrl!.isNotEmpty
+              ? Container(
+                  width: 32, height: 32,
+                  decoration: BoxDecoration(
+                    color: ach.isUnlocked ? Colors.amber.withOpacity(0.1) : Colors.white.withOpacity(0.05),
+                    shape: BoxShape.circle,
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Opacity(
+                      opacity: ach.isUnlocked ? 1.0 : 0.4,
+                      child: Image.network(
+                        ApiService().getMediaUrl(ach.imageUrl!),
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => Icon(Icons.stars_rounded, color: ach.isUnlocked ? Colors.amber : Colors.grey.shade700, size: 32),
+                      ),
+                    ),
+                  ),
+                )
+              : Icon(Icons.stars_rounded, color: ach.isUnlocked ? Colors.amber : Colors.grey.shade700, size: 32),
           const SizedBox(width: 16),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(ach.title, style: GoogleFonts.outfit(color: ach.isUnlocked ? Colors.white : Colors.grey, fontWeight: FontWeight.bold, fontSize: 15)), Text(ach.description, style: TextStyle(color: Colors.grey.shade500, fontSize: 11))])),
           if (ach.isUnlocked) const Icon(Icons.check_circle_rounded, color: Colors.amber, size: 18),

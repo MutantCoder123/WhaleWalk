@@ -10,7 +10,7 @@ const specialBadges = [
         description: "Unlocked by earning 5 achievements.",
         price: 0,
         category: "badge",
-        imageUrl: "/media/images/t1badge.png",
+        imageUrl: "media/images/t1badge.png",
         isPurchasable: false
     },
     {
@@ -18,7 +18,7 @@ const specialBadges = [
         description: "Unlocked by earning 15 achievements.",
         price: 0,
         category: "badge",
-        imageUrl: "/media/images/t2badge.png",
+        imageUrl: "media/images/t2badge.png",
         isPurchasable: false
     },
     {
@@ -26,7 +26,7 @@ const specialBadges = [
         description: "Unlocked by earning 30 achievements.",
         price: 0,
         category: "badge",
-        imageUrl: "/media/images/t3badge.png",
+        imageUrl: "media/images/t3badge.png",
         isPurchasable: false
     }
 ];
