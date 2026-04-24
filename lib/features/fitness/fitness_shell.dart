@@ -14,7 +14,7 @@ class FitnessShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     const primaryColor = Color(0xFFFF5722);
     const bgColor = Color(0xFFF8F9FA);
-    final currentZone = ref.watch(currentZoneProvider);
+    final currentZone = ref.watch(walletProvider).activeZone ?? "Out of Zone";
 
     return Theme(
       data: ThemeData(

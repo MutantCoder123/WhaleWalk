@@ -3,34 +3,45 @@ import { Steps } from "../models/step.model.js"
 import { Wallet } from "../models/wallet.model.js"
 
 const stepsToCoinCron = () => {
-    cron.schedule('0 0 * * *', async () => {  // runs every midnight
-        console.log("Running steps to coin conversion...")
+    cron.schedule('*/1 * * * *', async () => {  // runs every 1 minute
+        console.log("Running automatic 1-minute steps-to-coin conversion...")
 
         try {
-            const allSteps = await Steps.find({ stepsCount: { $gt: 0 } })
+            const allSteps = await Steps.find({
+                availableSteps: { $gte: 100 }
+            })
 
             for (const step of allSteps) {
-                const earnedCoins = Math.floor(step.stepsCount / 10)  // 10 steps = 1 coin
+                const spendableSteps = step.availableSteps ?? 0
+                const earnedCoins = Math.floor(spendableSteps / 100)  // 100 steps = 1 coin
 
                 if (earnedCoins > 0) {
+                    const deduction = earnedCoins * 100;
+                    
                     // add coins to wallet
                     await Wallet.findOneAndUpdate(
                         { username: step.username },
                         { $inc: { campusCoins: earnedCoins } }
                     )
 
-                    // reset steps to 0
+                    // deduct only the converted steps
                     await Steps.findOneAndUpdate(
                         { username: step.username },
-                        { $set: { stepsCount: 0 } }
+                        {
+                            $inc: {
+                                availableSteps: -deduction
+                            }
+                        }
                     )
+
+                    console.log(`Auto-Converted ${deduction} steps to ${earnedCoins} coins for ${step.username}`);
                 }
             }
 
-            console.log("Steps to coin conversion done!")
+            console.log("Auto-conversion cycle complete.")
 
         } catch (error) {
-            console.log("Cron job error:", error)
+            console.log("Fitness Cron error:", error)
         }
     })
 }

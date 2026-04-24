@@ -16,22 +16,47 @@ const getStepInfo = asyncHandler(async (req, res) => {
 })
 
 const updateSteps = asyncHandler(async (req, res) => {
-    const { stepsCount } = req.body
+    const { stepsCount, distanceKm, kcal, activeMin } = req.body
     const username = req.user.username
 
-    if (!stepsCount || stepsCount < 0) {
+    if (typeof stepsCount !== "number" || Number.isNaN(stepsCount) || stepsCount < 0) {
         throw new ApiError(400, "Valid steps count is required")
     }
 
-    const steps = await Steps.findOneAndUpdate(
-        { username },
-        { $set: { stepsCount } },
-        { returnDocument: 'after' }
-    )
+    const todayKey = new Date().toISOString().slice(0, 10)
+    const currentSteps = await Steps.findOne({ username })
 
-    if (!steps) {
+    if (!currentSteps) {
         throw new ApiError(404, "Steps record not found")
     }
+
+    const previousActual = currentSteps.actualSteps ?? currentSteps.stepsCount ?? 0
+    const previousAvailable = currentSteps.availableSteps ?? currentSteps.stepsCount ?? 0
+    const isNewDay = currentSteps.lastSyncedOn !== todayKey
+
+    const earnedDelta = isNewDay
+        ? stepsCount
+        : Math.max(stepsCount - previousActual, 0)
+
+    const availableSteps = isNewDay
+        ? stepsCount
+        : previousAvailable + earnedDelta
+
+    const steps = await Steps.findOneAndUpdate(
+        { username },
+        {
+            $set: {
+                actualSteps: stepsCount,
+                availableSteps,
+                stepsCount: availableSteps,
+                lastSyncedOn: todayKey,
+                distanceKm: distanceKm || 0,
+                kcal: kcal || 0,
+                activeMin: activeMin || 0,
+            }
+        },
+        { returnDocument: 'after' }
+    )
 
     return res
         .status(200)

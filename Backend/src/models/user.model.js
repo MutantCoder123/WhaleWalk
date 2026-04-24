@@ -35,6 +35,32 @@ const userSchema = new Schema(
         refreshToken: {
             type: String,
         },
+        inventory: [
+            {
+                type: Schema.Types.ObjectId,
+                ref: "StoreItem",
+            }
+        ],
+        activeBadge: {
+            type: Schema.Types.ObjectId,
+            ref: "StoreItem",
+        },
+        activeTitle: {
+            type: Schema.Types.ObjectId,
+            ref: "StoreItem",
+        },
+        unlockedAchievements: [
+            {
+                type: Schema.Types.ObjectId,
+                ref: "Achievement",
+            }
+        ],
+        newlyUnlockedAchievements: [
+            {
+                type: Schema.Types.ObjectId,
+                ref: "Achievement",
+            }
+        ],
     },
     {
         timestamps: true,
@@ -77,6 +103,36 @@ userSchema.methods.generateRefreshToken = function(){
             expiresIn: process.env.REFRESH_TOKEN_EXPIRY
         }
     )
+}
+
+userSchema.methods.updateActiveBadge = async function(badgeId){
+    this.activeBadge = badgeId;
+    await this.save({ validateBeforeSave: false });
+    return this;
+}
+
+userSchema.methods.updateActiveTitle = async function(titleId){
+    this.activeTitle = titleId;
+    await this.save({ validateBeforeSave: false });
+    return this;
+}
+
+userSchema.methods.addToInventory = async function(itemId){
+    if(!this.inventory.includes(itemId)){
+        this.inventory.push(itemId);
+        await this.save({ validateBeforeSave: false });
+    }
+    return this;
+}
+
+userSchema.methods.unlockAchievement = async function(achievementId){
+    if(!this.unlockedAchievements.includes(achievementId)){
+        this.unlockedAchievements.push(achievementId);
+        this.newlyUnlockedAchievements.push(achievementId);
+        await this.save({ validateBeforeSave: false });
+        return true;
+    }
+    return false;
 }
 
 export const User = mongoose.model("User", userSchema);

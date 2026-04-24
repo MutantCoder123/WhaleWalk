@@ -1,22 +1,27 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../core/services/api_service.dart';
+import '../../core/state/app_state.dart';
 
-class AdminView extends StatefulWidget {
+class AdminView extends ConsumerStatefulWidget {
   const AdminView({super.key});
 
   @override
-  State<AdminView> createState() => _AdminViewState();
+  ConsumerState<AdminView> createState() => _AdminViewState();
 }
 
-class _AdminViewState extends State<AdminView> {
+class _AdminViewState extends ConsumerState<AdminView> {
   bool _isLoading = true;
   String? _error;
   List<dynamic> _stocks = [];
   List<dynamic> _bets = [];
+  List<dynamic> _zones = [];
 
   List<dynamic> get _openChallenges =>
       _bets.where((bet) => bet['status'] == 'open').toList();
@@ -37,11 +42,13 @@ class _AdminViewState extends State<AdminView> {
       final results = await Future.wait([
         apiService.fetchStocks(),
         apiService.fetchBets(),
+        apiService.fetchZones(),
       ]);
 
       setState(() {
         _stocks = results[0];
         _bets = results[1];
+        _zones = results[2];
       });
     } catch (e) {
       setState(() {
@@ -108,69 +115,135 @@ class _AdminViewState extends State<AdminView> {
     }
   }
 
+  Future<void> _openCreateZoneDialog() async {
+    final created = await showDialog<bool>(
+      context: context,
+      builder: (context) => const _CreateZoneDialog(),
+    );
+
+    if (created == true) {
+      await _loadAdminData();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Zone created successfully'),
+          backgroundColor: Color(0xFF00D09C),
+        ),
+      );
+    }
+  }
+
+  Future<void> _openEditZoneDialog(Map<String, dynamic> zone) async {
+    final updated = await showDialog<bool>(
+      context: context,
+      builder: (context) => _CreateZoneDialog(initialZone: zone),
+    );
+
+    if (updated == true) {
+      await _loadAdminData();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Zone updated successfully'),
+          backgroundColor: Color(0xFF00D09C),
+        ),
+      );
+    }
+  }
+
+  Future<void> _deleteZone(String id) async {
+    try {
+      await apiService.deleteZone(id);
+      await _loadAdminData();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error deleting zone: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Future<void> _deleteStock(String id) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Stock?'),
+        content: const Text('This action cannot be undone and may affect active orders.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('DELETE'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await apiService.deleteStock(id);
+      await _loadAdminData();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Stock deleted')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showError(context, e);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Theme(
       data: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF0D0E12),
       ),
-      child: DefaultTabController(
-        length: 3,
-        child: Scaffold(
-          backgroundColor: const Color(0xFF121212),
-          body: CustomScrollView(
-            slivers: [
-              SliverAppBar(
-                toolbarHeight: 60,
-                expandedHeight: 104,
-                pinned: true,
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-                leading: IconButton(
-                  icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-                  onPressed: () => Navigator.pop(context),
+      child: Scaffold(
+        backgroundColor: const Color(0xFF121212),
+        body: CustomScrollView(
+          slivers: [
+            SliverAppBar(
+              toolbarHeight: 60,
+              expandedHeight: 104,
+              pinned: true,
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.refresh_rounded, color: Colors.white70),
+                  onPressed: _isLoading ? null : _loadAdminData,
                 ),
-                actions: [
-                  IconButton(
-                    icon: const Icon(Icons.refresh_rounded, color: Colors.white70),
-                    onPressed: _isLoading ? null : _loadAdminData,
-                  ),
-                ],
-                flexibleSpace: ClipRRect(
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                    child: Container(
-                      color: const Color(0xFF101010).withOpacity(0.85),
-                      alignment: Alignment.centerLeft,
-                      padding: const EdgeInsets.fromLTRB(64, 0, 72, 44),
-                      child: Text(
-                        'ADMIN CONSOLE',
-                        style: GoogleFonts.lexend(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 22,
-                          letterSpacing: 1.5,
-                          color: Colors.white,
-                        ),
+              ],
+              flexibleSpace: ClipRRect(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                  child: Container(
+                    color: const Color(0xFF101010).withOpacity(0.85),
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.fromLTRB(64, 0, 72, 44),
+                    child: Text(
+                      'ADMIN CONSOLE',
+                      style: GoogleFonts.lexend(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 22,
+                        letterSpacing: 1.5,
+                        color: Colors.white,
                       ),
                     ),
                   ),
                 ),
-                bottom: const TabBar(
-                  indicatorColor: Color(0xFFFF5722),
-                  labelColor: Color(0xFFFF5722),
-                  unselectedLabelColor: Colors.white54,
-                  tabs: [
-                    Tab(icon: Icon(Icons.candlestick_chart_rounded, size: 18), text: 'STOCKS'),
-                    Tab(icon: Icon(Icons.flag_rounded, size: 18), text: 'CHALLENGES'),
-                    Tab(icon: Icon(Icons.fact_check_rounded, size: 18), text: 'BETS'),
-                  ],
-                ),
               ),
-              SliverFillRemaining(
-                child: _buildBody(),
-              ),
-            ],
-          ),
+            ),
+            SliverFillRemaining(
+              child: _buildBody(),
+            ),
+          ],
         ),
       ),
     );
@@ -191,125 +264,250 @@ class _AdminViewState extends State<AdminView> {
       );
     }
 
-    return TabBarView(
+    return ListView(
+      padding: const EdgeInsets.all(24),
       children: [
-        _buildStocksList(),
-        _buildBetsList(
-          _openChallenges,
-          emptyTitle: 'No active challenges',
-          createLabel: 'ADD CHALLENGE',
-          onCreate: () => _openCreateBetDialog(title: 'Create Challenge'),
+        GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 3,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          children: [
+            _SquareActionCard(
+              icon: Icons.candlestick_chart_rounded,
+              title: 'STOCKS\nMGNT',
+              color: Colors.blue,
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => _AdminStocksPage(
+                stocks: _stocks, 
+                onAdd: _openCreateStockDialog,
+                onDelete: _deleteStock,
+              ))),
+            ),
+            _SquareActionCard(
+              icon: Icons.flag_rounded,
+              title: 'CHALLENGES\nMGNT',
+              color: Colors.orange,
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => _AdminBetsPage(
+                title: 'CHALLENGES',
+                bets: _bets.where((b) => b['isTrending'] == true).toList(), 
+                onAdd: () => _openCreateBetDialog(title: 'Create Challenge'),
+                onSetResult: _openSetResultDialog,
+              ))),
+            ),
+            _SquareActionCard(
+              icon: Icons.fact_check_rounded,
+              title: 'BETS\nMGNT',
+              color: Colors.purple,
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => _AdminBetsPage(
+                title: 'BETS',
+                bets: _bets.where((b) => b['isTrending'] != true).toList(), 
+                onAdd: () => _openCreateBetDialog(title: 'Create Bet'),
+                onSetResult: _openSetResultDialog,
+              ))),
+            ),
+          ],
         ),
-        _buildBetsList(
-          _bets,
-          emptyTitle: 'No bets created yet',
-          createLabel: 'ADD BET',
-          onCreate: () => _openCreateBetDialog(title: 'Create Bet'),
+        const SizedBox(height: 36),
+        const Text("CAMPUS ZONES MANAGEMENT", style: TextStyle(color: Colors.white54, fontWeight: FontWeight.bold, letterSpacing: 1.5, fontSize: 13)),
+        const SizedBox(height: 16),
+        _buildAdminMapControl(),
+        const SizedBox(height: 16),
+        _buildZonesSection(),
+      ],
+    );
+  }
+
+  Widget _buildAdminMapControl() {
+    final wallet = ref.watch(walletProvider);
+    final userPos = (wallet.userLat != null && wallet.userLng != null) 
+        ? LatLng(wallet.userLat!, wallet.userLng!) 
+        : const LatLng(25.5358, 84.8510);
+
+    return Container(
+      height: 250,
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white10),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: FlutterMap(
+        options: MapOptions(
+          initialCenter: userPos,
+          initialZoom: 15.0,
+        ),
+        children: [
+          TileLayer(
+            urlTemplate: 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+            userAgentPackageName: 'com.example.app',
+          ),
+          CircleLayer(
+            circles: _zones.map((z) => CircleMarker(
+              point: LatLng((z['latitude'] ?? 0.0).toDouble(), (z['longitude'] ?? 0.0).toDouble()),
+              color: Colors.blue.withOpacity(0.3),
+              borderColor: Colors.blue,
+              borderStrokeWidth: 2,
+              useRadiusInMeter: true,
+              radius: (z['radiusMeters'] ?? 50.0).toDouble(),
+            )).toList(),
+          ),
+          MarkerLayer(
+            markers: [
+              ..._zones.map((z) => Marker(
+                point: LatLng((z['latitude'] ?? 0.0).toDouble(), (z['longitude'] ?? 0.0).toDouble()),
+                width: 80,
+                height: 40,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.black87,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.white24),
+                    ),
+                    child: Text(
+                      z['name'] ?? 'Zone',
+                      style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              )),
+              if (wallet.userLat != null && wallet.userLng != null)
+                Marker(
+                  point: LatLng(wallet.userLat!, wallet.userLng!),
+                  width: 60,
+                  height: 60,
+                  child: const _UserLocationMarker(),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildZonesSection() {
+    if (_zones.isEmpty) {
+      return _EmptyState(
+        icon: Icons.map_rounded,
+        title: 'No zones active',
+        message: 'No location tracking bubbles map.',
+        action: _CreateButton(
+           label: 'DEFINE NEW ZONE',
+           icon: Icons.add_location_alt_rounded,
+           onPressed: _openCreateZoneDialog,
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        ..._zones.map((zone) {
+          return _AdminTile(
+            icon: Icons.location_on_rounded,
+            accent: Colors.pinkAccent,
+            title: zone['name'] ?? 'Unknown',
+            subtitle: '${zone['latitude']}, ${zone['longitude']}',
+            trailing: '${zone['radiusMeters']}m',
+            meta: 'Boundary configuration active',
+            action: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.edit_rounded, color: Colors.white38, size: 20),
+                  onPressed: () => _openEditZoneDialog(zone),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_rounded, color: Colors.white38, size: 20),
+                  onPressed: () => _deleteZone(zone['_id']),
+                ),
+              ],
+            ),
+          );
+        }),
+        const SizedBox(height: 12),
+        _CreateButton(
+           label: 'DEFINE NEW ZONE',
+           icon: Icons.add_location_alt_rounded,
+           onPressed: _openCreateZoneDialog,
         ),
       ],
     );
   }
 
   Widget _buildStocksList() {
-    final createButton = _CreateButton(
-      label: 'ADD STOCK',
-      icon: Icons.add_chart_rounded,
-      onPressed: _openCreateStockDialog,
-    );
+    if (_stocks.isEmpty) return const SizedBox.shrink();
+    return Column(
+      children: _stocks.map((stock) {
+        final price = (stock['price'] ?? 0).toDouble();
+        final previousPrice = (stock['previousPrice'] ?? 0).toDouble();
+        final isUp = price >= previousPrice;
 
-    if (_stocks.isEmpty) {
-      return _EmptyState(
-        icon: Icons.candlestick_chart_rounded,
-        title: 'No stocks created yet',
-        message: 'Create the first tradable asset from here.',
-        action: createButton,
-      );
-    }
-
-    return ListView(
-      padding: const EdgeInsets.all(24),
-      children: [
-        createButton,
-        const SizedBox(height: 18),
-        ..._stocks.map((stock) {
-          final price = (stock['price'] ?? 0).toDouble();
-          final previousPrice = (stock['previousPrice'] ?? 0).toDouble();
-          final isUp = price >= previousPrice;
-
-          return _AdminTile(
-            icon: Icons.show_chart_rounded,
-            accent: isUp ? const Color(0xFF00D09C) : const Color(0xFFEB5B3C),
-            title: stock['name'] ?? 'Unnamed stock',
-            subtitle: stock['stockId'] ?? 'No stock id',
-            trailing: '${price.toStringAsFixed(2)} CMX',
-            meta: 'Shares: ${stock['sharesct'] ?? 0}',
-          );
-        }),
-      ],
-    );
-  }
-
-  Widget _buildBetsList(
-    List<dynamic> bets, {
-    required String emptyTitle,
-    required String createLabel,
-    required VoidCallback onCreate,
-  }) {
-    final createButton = _CreateButton(
-      label: createLabel,
-      icon: Icons.add_task_rounded,
-      onPressed: onCreate,
-    );
-
-    if (bets.isEmpty) {
-      return _EmptyState(
-        icon: Icons.fact_check_rounded,
-        title: emptyTitle,
-        message: 'Create one from this console to see it here.',
-        action: createButton,
-      );
-    }
-
-    return ListView(
-      padding: const EdgeInsets.all(24),
-      children: [
-        createButton,
-        const SizedBox(height: 18),
-        ...bets.map((bet) {
-          final status = bet['status'] ?? 'unknown';
-          final resultTime = DateTime.tryParse(bet['resultTime'] ?? '');
-          final accent = status == 'open'
-              ? const Color(0xFF00D09C)
-              : const Color(0xFFEB5B3C);
-
-          return _AdminTile(
-            icon: Icons.flag_rounded,
-            accent: accent,
-            title: bet['question'] ?? 'Untitled bet',
-            subtitle: bet['betId'] ?? 'No bet id',
-            trailing: status.toString().toUpperCase(),
-            meta: 'Pool: ${bet['totalPool'] ?? 0} CMX  |  Users: ${bet['totalEnrolled'] ?? 0}  |  Result: ${bet['result'] ?? 'hidden'}${resultTime == null ? '' : '  |  ${_formatDate(resultTime)}'}',
-            action: status == 'open'
-                ? TextButton(
-                    onPressed: () => _openSetResultDialog(bet['betId']),
-                    style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFFFF5722),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      minimumSize: const Size(0, 32),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      backgroundColor: const Color(0xFFFF5722).withOpacity(0.1),
-                    ),
-                    child: const Text('SET RESULT', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  )
-                : null,
-          );
-        }),
-      ],
+        return _AdminTile(
+          icon: Icons.show_chart_rounded,
+          accent: isUp ? const Color(0xFF00D09C) : const Color(0xFFEB5B3C),
+          title: stock['name'] ?? 'Unnamed stock',
+          subtitle: stock['stockId'] ?? 'No stock id',
+          trailing: '${price.toStringAsFixed(2)} CMX',
+          meta: 'Shares: ${stock['sharesct'] ?? 0}',
+          action: IconButton(
+            icon: const Icon(Icons.delete_outline_rounded, color: Colors.white38),
+            onPressed: () => _deleteStock(stock['_id']),
+          ),
+        );
+      }).toList(),
     );
   }
 
   String _formatDate(DateTime date) {
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+  }
+}
+
+class _SquareActionCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _SquareActionCard({
+    required this.icon,
+    required this.title,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: color, size: 28),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.bold,
+                fontSize: 10,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -968,6 +1166,122 @@ String? _optionalPositiveNumber(String? value) {
   return _positiveNumber(value);
 }
 
+class _CreateZoneDialog extends StatefulWidget {
+  final Map<String, dynamic>? initialZone;
+  const _CreateZoneDialog({this.initialZone});
+  @override
+  State<_CreateZoneDialog> createState() => _CreateZoneDialogState();
+}
+
+class _CreateZoneDialogState extends State<_CreateZoneDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameController;
+  late final TextEditingController _latController;
+  late final TextEditingController _lngController;
+  late final TextEditingController _radiusController;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.initialZone?['name']);
+    _latController = TextEditingController(text: widget.initialZone?['latitude']?.toString());
+    _lngController = TextEditingController(text: widget.initialZone?['longitude']?.toString());
+    _radiusController = TextEditingController(text: widget.initialZone?['radiusMeters']?.toString() ?? '50.0');
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _latController.dispose();
+    _lngController.dispose();
+    _radiusController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSubmitting = true);
+    try {
+      if (widget.initialZone != null) {
+        await apiService.updateZone(
+          id: widget.initialZone!['_id'],
+          name: _nameController.text.trim(),
+          latitude: double.parse(_latController.text.trim()),
+          longitude: double.parse(_lngController.text.trim()),
+          radiusMeters: double.parse(_radiusController.text.trim()),
+        );
+      } else {
+        await apiService.createZone(
+          name: _nameController.text.trim(),
+          latitude: double.parse(_latController.text.trim()),
+          longitude: double.parse(_lngController.text.trim()),
+          radiusMeters: double.parse(_radiusController.text.trim()),
+        );
+      }
+
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _AdminDialogShell(
+      title: widget.initialZone != null ? 'Edit Zone' : 'Define New Zone',
+      isSubmitting: _isSubmitting,
+      submitLabel: widget.initialZone != null ? 'UPDATE ZONE' : 'CREATE ZONE',
+      onSubmit: _submit,
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _AdminTextField(
+              controller: _nameController,
+              label: 'Zone Name (e.g Library)',
+              icon: Icons.title_rounded,
+              validator: _required,
+            ),
+            const SizedBox(height: 12),
+            _AdminTextField(
+              controller: _latController,
+              label: 'Latitude (e.g 25.535)',
+              icon: Icons.map_rounded,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+              validator: _required,
+            ),
+            const SizedBox(height: 12),
+            _AdminTextField(
+              controller: _lngController,
+              label: 'Longitude (e.g 84.851)',
+              icon: Icons.map_rounded,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+              validator: _required,
+            ),
+            const SizedBox(height: 12),
+            _AdminTextField(
+              controller: _radiusController,
+              label: 'Radius (Meters)',
+              icon: Icons.radar_rounded,
+              keyboardType: TextInputType.number,
+              validator: _positiveNumber,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 String _formatDateTime(DateTime date) {
   final day = date.day.toString().padLeft(2, '0');
   final month = date.month.toString().padLeft(2, '0');
@@ -983,4 +1297,158 @@ void _showError(BuildContext context, Object error) {
       backgroundColor: const Color(0xFFEB5B3C),
     ),
   );
+}
+
+class _AdminStocksPage extends StatelessWidget {
+  final List<dynamic> stocks;
+  final VoidCallback onAdd;
+  final Function(String) onDelete;
+
+  const _AdminStocksPage({
+    required this.stocks,
+    required this.onAdd,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF121212),
+      appBar: AppBar(
+        title: const Text('STOCKS MANAGEMENT'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          _CreateButton(
+            label: 'ADD NEW STOCK',
+            icon: Icons.add_chart_rounded,
+            onPressed: onAdd,
+          ),
+          const SizedBox(height: 24),
+          if (stocks.isEmpty)
+            const _EmptyState(
+              icon: Icons.inventory_2_outlined,
+              title: 'No stocks found',
+              message: 'Add some stocks to see them here.',
+            )
+          else
+            ...stocks.map((stock) {
+              final price = (stock['price'] ?? 0).toDouble();
+              final previousPrice = (stock['previousPrice'] ?? 0).toDouble();
+              final isUp = price >= previousPrice;
+              return _AdminTile(
+                icon: Icons.show_chart_rounded,
+                accent: isUp ? const Color(0xFF00D09C) : const Color(0xFFEB5B3C),
+                title: stock['name'] ?? 'Unnamed',
+                subtitle: stock['stockId'] ?? 'UNK',
+                trailing: '${price.toStringAsFixed(2)} CMX',
+                meta: 'Shares: ${stock['sharesct'] ?? 0}',
+                action: IconButton(
+                  icon: const Icon(Icons.delete_outline_rounded, color: Colors.white38),
+                  onPressed: () => onDelete(stock['_id']),
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdminBetsPage extends StatelessWidget {
+  final String title;
+  final List<dynamic> bets;
+  final VoidCallback onAdd;
+  final Function(String) onSetResult;
+
+  const _AdminBetsPage({
+    required this.title,
+    required this.bets,
+    required this.onAdd,
+    required this.onSetResult,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF121212),
+      appBar: AppBar(
+        title: Text('$title MANAGEMENT'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          _CreateButton(
+            label: 'ADD NEW ${title.toUpperCase()}',
+            icon: Icons.add_task_rounded,
+            onPressed: onAdd,
+          ),
+          const SizedBox(height: 24),
+          if (bets.isEmpty)
+             _EmptyState(
+              icon: Icons.assignment_late_outlined,
+              title: 'No $title found',
+              message: 'Define some to start tracking.',
+            )
+          else
+            ...bets.map((bet) {
+              final isClosed = bet['status'] == 'closed';
+              return _AdminTile(
+                icon: isClosed ? Icons.lock_clock_rounded : Icons.pending_actions_rounded,
+                accent: isClosed ? Colors.grey : Colors.purpleAccent,
+                title: bet['question'] ?? 'No question',
+                subtitle: 'ID: ${bet['_id']}',
+                trailing: '${bet['totalPool'] ?? 0} CMX',
+                meta: isClosed ? 'STATUS: CLOSED' : 'STATUS: ACTIVE',
+                action: isClosed ? null : IconButton(
+                  icon: const Icon(Icons.fact_check_rounded, color: Colors.white70),
+                  onPressed: () => onSetResult(bet['_id']),
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+}
+
+class _UserLocationMarker extends StatelessWidget {
+  const _UserLocationMarker();
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Container(
+          width: 24,
+          height: 24,
+          decoration: BoxDecoration(
+            color: const Color(0xFF2962FF).withOpacity(0.3),
+            shape: BoxShape.circle,
+          ),
+        ),
+        Container(
+          width: 14,
+          height: 14,
+          decoration: const BoxDecoration(
+            color: Color(0xFF2962FF),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black26,
+                blurRadius: 4,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 }

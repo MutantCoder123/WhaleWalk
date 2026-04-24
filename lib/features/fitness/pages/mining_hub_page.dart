@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../../../core/state/app_state.dart';
 
 class ZonePage extends ConsumerWidget {
@@ -7,25 +9,115 @@ class ZonePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final currentZone = ref.watch(currentZoneProvider);
-    final orbs = ref.watch(orbsProvider);
+    final wallet = ref.watch(walletProvider);
+    final campusZones = ref.watch(zonesProvider);
+    final orbs = wallet.orbs;
+    final activeZone = wallet.activeZone;
 
-    return ListView(
-      padding: const EdgeInsets.all(24),
+    return Stack(
       children: [
-        _buildOrbsHeader(orbs),
-        const SizedBox(height: 32),
-        const Text("AVAILABLE ZONES", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.grey, letterSpacing: 1.5)),
-        const SizedBox(height: 16),
-        _buildZoneOption(context, ref, "Library", currentZone == "Library"),
-        _buildZoneOption(context, ref, "Gym", currentZone == "Gym"),
-        _buildZoneOption(context, ref, "Canteen", currentZone == "Canteen"),
-        _buildZoneOption(context, ref, "Tech Park", currentZone == "Tech Park"),
+        // Map as background
+        FlutterMap(
+          options: MapOptions(
+            initialCenter: const LatLng(25.5358, 84.8510), // IIT Patna anchor
+            initialZoom: 16.0,
+            interactionOptions: const InteractionOptions(flags: InteractiveFlag.all),
+          ),
+          children: [
+            TileLayer(
+              urlTemplate: 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+              userAgentPackageName: 'com.example.app',
+            ),
+            CircleLayer(
+              circles: campusZones.map((z) => CircleMarker(
+                point: LatLng(z.latitude, z.longitude),
+                color: activeZone == z.name ? Colors.orange.withOpacity(0.4) : Colors.blue.withOpacity(0.2),
+                borderColor: activeZone == z.name ? Colors.orange : Colors.blue,
+                borderStrokeWidth: 2,
+                useRadiusInMeter: true,
+                radius: z.radiusMeters,
+              )).toList(),
+            ),
+            MarkerLayer(
+              markers: [
+                // Zone Markers (Labels)
+                ...campusZones.map((z) => Marker(
+                  point: LatLng(z.latitude, z.longitude),
+                  width: 150,
+                  height: 60,
+                  child: Column(
+                    children: [
+                      Icon(Icons.location_on, 
+                        color: activeZone == z.name ? Colors.orange : Colors.blue, 
+                        size: 30
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: activeZone == z.name ? Colors.orange : Colors.black87,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            if (activeZone == z.name)
+                              BoxShadow(color: Colors.orange.withOpacity(0.5), blurRadius: 10)
+                          ],
+                          border: Border.all(color: Colors.white24)
+                        ),
+                        child: Text(
+                          z.name,
+                          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
+                
+                // User Location Marker
+                if (wallet.userLat != null && wallet.userLng != null)
+                  Marker(
+                    point: LatLng(wallet.userLat!, wallet.userLng!),
+                    width: 60,
+                    height: 60,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Container(
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF2962FF).withOpacity(0.3),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        Container(
+                          width: 12,
+                          height: 12,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF2962FF),
+                            shape: BoxShape.circle,
+                            boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            )
+          ],
+        ),
+        
+        // Floating header for Orbs
+        Positioned(
+          top: 24,
+          left: 24,
+          right: 24,
+          child: _buildOrbsHeader(orbs, activeZone),
+        ),
       ],
     );
   }
 
-  Widget _buildOrbsHeader(int orbs) {
+  Widget _buildOrbsHeader(int orbs, String? activeZone) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -40,30 +132,32 @@ class ZonePage extends ConsumerWidget {
           const Text("SPECIAL ORBS", style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, letterSpacing: 2)),
           Text("$orbs", style: const TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.bold)),
           const Text("1 Orb = 5 Coins in Wallet", style: TextStyle(color: Colors.white54, fontSize: 12)),
+          const SizedBox(height: 16),
+          if (activeZone != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.orange,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                "FARMING IN: ${activeZone.toUpperCase()}",
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+              ),
+            )
+          else
+             Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.black26,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text(
+                "MOVE TO A ZONE TO FARM ORBS",
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+              ),
+            ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildZoneOption(BuildContext context, WidgetRef ref, String zoneName, bool isActive) {
-    return InkWell(
-      onTap: () => ref.read(currentZoneProvider.notifier).state = zoneName,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: isActive ? Colors.orange.shade50 : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isActive ? const Color(0xFFFF5722) : Colors.grey.shade200, width: isActive ? 2 : 1),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(zoneName, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: isActive ? const Color(0xFFFF5722) : Colors.black)),
-            if (isActive) const Icon(Icons.check_circle_rounded, color: Color(0xFFFF5722)),
-          ],
-        ),
       ),
     );
   }

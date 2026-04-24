@@ -33,10 +33,16 @@ const stockSchema = new Schema(
             type: Number,
             default: 0,
         },
-        history: {
-            type: [Number],
-            default: [],
-        },
+        history: [{
+            price: {
+                type: Number,
+                required: true,
+            },
+            timestamp: {
+                type: Date,
+                default: Date.now,
+            }
+        }],
     },
     {
         timestamps: true,

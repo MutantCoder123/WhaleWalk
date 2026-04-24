@@ -138,6 +138,15 @@ const placeOrder = asyncHandler(async (req, res) => {
 
     // If executed (market order): deduct coins for buy, will handle sell coin credit later
     if (orderStatus === 'executed' && type === 'buy') {
+        // Price Impact: Buying pushes the price UP
+        // impact = (qty / total_shares) -> e.g. buying 1% of float = 1% price increase
+        const impact = (quantity / (stock.sharesct || 10000));
+        const newPrice = stock.price * (1 + impact);
+        
+        await Stock.findByIdAndUpdate(stock._id, { 
+            $set: { price: newPrice, previousPrice: stock.price } 
+        });
+
         await Wallet.findOneAndUpdate(
             { username },
             { $inc: { campusCoins: -(quantity * limitPrice) } }
@@ -173,6 +182,14 @@ const placeOrder = asyncHandler(async (req, res) => {
             isPositive: false
         });
     } else if (orderStatus === 'executed' && type === 'sell') {
+        // Price Impact: Selling pushes the price DOWN
+        const impact = (quantity / (stock.sharesct || 10000));
+        const newPrice = Math.max(0.01, stock.price * (1 - impact));
+
+        await Stock.findByIdAndUpdate(stock._id, { 
+            $set: { price: newPrice, previousPrice: stock.price } 
+        });
+
         await Wallet.findOneAndUpdate(
             { username },
             { $inc: { campusCoins: quantity * limitPrice } }
@@ -276,4 +293,15 @@ const createStock = asyncHandler(async (req, res) => {
         .json(new ApiResponse(201, stock, "Stock created successfully"))
 })
 
-export { getAllStocks, getUserStocks, placeOrder, getMyOrders, getCompletedOrders , createStock}
+const deleteStock = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const stock = await Stock.findByIdAndDelete(id);
+
+    if (!stock) {
+        throw new ApiError(404, "Stock not found");
+    }
+
+    return res.status(200).json(new ApiResponse(200, stock, "Stock deleted successfully"));
+});
+
+export { getAllStocks, getUserStocks, placeOrder, getMyOrders, getCompletedOrders , createStock, deleteStock}

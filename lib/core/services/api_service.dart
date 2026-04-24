@@ -136,6 +136,18 @@ class ApiService {
     return res['data'];
   }
 
+  Future<Map<String, dynamic>> deleteStock(String id) async {
+    final token = await _getToken();
+    final response = await http.delete(
+      Uri.parse('$baseUrl/stocks/$id'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+    return _decodeResponse(response, 'DELETE /stocks/$id')['data'];
+  }
+
   Future<Map<String, dynamic>> placeOrder({
     required String stockId,
     required int quantity,
@@ -186,6 +198,11 @@ class ApiService {
     return res['data'];
   }
 
+  Future<Map<String, dynamic>> farmOrbs(int stepsInZone) async {
+    final res = await post('/wallet/farm-orbs', {'stepsInZone': stepsInZone});
+    return res['data'];
+  }
+
   Future<List<dynamic>> getLeaderboard() async {
     final res = await get('/wallet/leaderboard');
     return res['data'] ?? [];
@@ -204,8 +221,13 @@ class ApiService {
     return res['data'];
   }
 
-  Future<Map<String, dynamic>> updateSteps(int stepsCount) async {
-    final res = await post('/users/steps/update', {'stepsCount': stepsCount});
+  Future<Map<String, dynamic>> updateSteps(int stepsCount, {double distanceKm = 0.0, double kcal = 0.0, int activeMin = 0}) async {
+    final res = await post('/users/steps/update', {
+      'stepsCount': stepsCount,
+      'distanceKm': distanceKm,
+      'kcal': kcal,
+      'activeMin': activeMin
+    });
     return res['data'];
   }
 
@@ -265,6 +287,65 @@ class ApiService {
       'result': result,
     });
     return res['data'];
+  }
+
+  // ---------------------------------------------------------------------------
+  // Campus Zones
+  // ---------------------------------------------------------------------------
+  Future<List<dynamic>> fetchZones() async {
+    final res = await get('/zones');
+    return res['data'] ?? [];
+  }
+
+  Future<Map<String, dynamic>> createZone({
+    required String name,
+    required double latitude,
+    required double longitude,
+    required double radiusMeters,
+  }) async {
+    final res = await post('/zones', {
+      'name': name,
+      'latitude': latitude,
+      'longitude': longitude,
+      'radiusMeters': radiusMeters,
+    });
+    return res['data'];
+  }
+
+  Future<Map<String, dynamic>> deleteZone(String id) async {
+    final token = await _getToken();
+    final response = await http.delete(
+      Uri.parse('$baseUrl/zones/$id'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+    return _decodeResponse(response, 'DELETE /zones/$id')['data'];
+  }
+
+  Future<Map<String, dynamic>> updateZone({
+    required String id,
+    required String name,
+    required double latitude,
+    required double longitude,
+    required double radiusMeters,
+  }) async {
+    final token = await _getToken();
+    final response = await http.patch(
+      Uri.parse('$baseUrl/zones/$id'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'name': name,
+        'latitude': latitude,
+        'longitude': longitude,
+        'radiusMeters': radiusMeters,
+      }),
+    );
+    return _decodeResponse(response, 'PATCH /zones/$id')['data'];
   }
 }
 

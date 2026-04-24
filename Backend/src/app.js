@@ -31,12 +31,18 @@ import userRouter from './routes/user.routes.js'
 import walletRouter from './routes/wallet.routes.js'
 import betRouter from './routes/bet.routes.js'
 import stockRouter from './routes/stock.routes.js'
+import storeRouter from './routes/store.routes.js'
+import achievementRouter from './routes/achievement.routes.js'
+import zoneRouter from './routes/zone.routes.js'
 
 //routes declaration
 app.use("/api/v1/users", userRouter)
 app.use("/api/v1/wallet", walletRouter)
 app.use("/api/v1/bet",betRouter)
 app.use("/api/v1/stocks", stockRouter)
+app.use("/api/v1/store", storeRouter)
+app.use("/api/v1/achievements", achievementRouter)
+app.use("/api/v1/zones", zoneRouter)
 // http://localhost:4000/api/v1/users/register
 
 app.use((req, res) => {

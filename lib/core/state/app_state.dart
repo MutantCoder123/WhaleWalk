@@ -1,8 +1,47 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 import '../services/pedometer_service.dart';
+import 'package:geolocator/geolocator.dart';
+
+// =============================================================================
+// Zone Configuration
+// =============================================================================
+class ZoneConfig {
+  final String id;
+  final String name;
+  final double latitude;
+  final double longitude;
+  final double radiusMeters;
+  const ZoneConfig({required this.id, required this.name, required this.latitude, required this.longitude, required this.radiusMeters});
+}
+
+class ZonesNotifier extends StateNotifier<List<ZoneConfig>> {
+  ZonesNotifier() : super([]) {
+    _fetchLive();
+  }
+
+  Future<void> _fetchLive() async {
+    try {
+       final data = await apiService.fetchZones();
+       state = data.map<ZoneConfig>((j) => ZoneConfig(
+           id: j['_id'] ?? '',
+           name: j['name'] ?? 'Unknown',
+           latitude: (j['latitude'] ?? 0.0).toDouble(),
+           longitude: (j['longitude'] ?? 0.0).toDouble(),
+           radiusMeters: (j['radiusMeters'] ?? 50.0).toDouble(),
+       )).toList();
+    } catch(e) {
+       logApiError('ZonesNotifier', e);
+    }
+  }
+
+  Future<void> refresh() => _fetchLive();
+}
+
+final zonesProvider = StateNotifierProvider<ZonesNotifier, List<ZoneConfig>>((ref) => ZonesNotifier());
 
 // =============================================================================
 // App Mode
@@ -10,7 +49,6 @@ import '../services/pedometer_service.dart';
 enum AppMode { fitness, trading }
 
 final appModeProvider = StateProvider<AppMode>((ref) => AppMode.fitness);
-final currentZoneProvider = StateProvider<String>((ref) => "Library");
 
 // Used by nav to open the drawer from child pages
 final GlobalKey<ScaffoldState> mainScaffoldKey = GlobalKey<ScaffoldState>();
@@ -48,7 +86,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
     );
   }
 
-  Future<void> register(String fullName, String email, String username, String password) async {
+  Future<void> register(
+      String fullName, String email, String username, String password) async {
     await apiService.register(fullName, email, username, password);
     // Auto-login after register
     await login(email, password);
@@ -60,22 +99,62 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 }
 
-final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) => AuthNotifier());
+final authProvider =
+    StateNotifierProvider<AuthNotifier, AuthState>((ref) => AuthNotifier());
 
 // =============================================================================
 // Wallet / Coins / Steps / Orbs  (live from backend)
 // =============================================================================
+class FitnessStats {
+  final double distanceKm;
+  final double kcal;
+  final int activeMin;
+  const FitnessStats({
+    this.distanceKm = 0.0,
+    this.kcal = 0.0,
+    this.activeMin = 0,
+  });
+}
 class WalletData {
   final double campusCoins;
   final int orbs;
-  final int stepsCount;
-  const WalletData({this.campusCoins = 10000, this.orbs = 14, this.stepsCount = 10000});
+  final int actualSteps;
+  final int availableSteps;
+  final FitnessStats stats;
+  final String? activeZone;
+  final double? userLat;
+  final double? userLng;
+  const WalletData({
+    this.campusCoins = 10000,
+    this.orbs = 14,
+    this.actualSteps = 0,
+    this.availableSteps = 0,
+    this.stats = const FitnessStats(),
+    this.activeZone,
+    this.userLat,
+    this.userLng,
+  });
 
-  WalletData copyWith({double? campusCoins, int? stepsCount, int? orbs}) => WalletData(
-    campusCoins: campusCoins ?? this.campusCoins,
-    stepsCount: stepsCount ?? this.stepsCount,
-    orbs: orbs ?? this.orbs,
-  );
+  WalletData copyWith({
+    double? campusCoins,
+    int? actualSteps,
+    int? availableSteps,
+    int? orbs,
+    FitnessStats? stats,
+    String? activeZone,
+    double? userLat,
+    double? userLng,
+  }) =>
+      WalletData(
+        campusCoins: campusCoins ?? this.campusCoins,
+        actualSteps: actualSteps ?? this.actualSteps,
+        availableSteps: availableSteps ?? this.availableSteps,
+        orbs: orbs ?? this.orbs,
+        stats: stats ?? this.stats,
+        activeZone: activeZone ?? this.activeZone,
+        userLat: userLat ?? this.userLat,
+        userLng: userLng ?? this.userLng,
+      );
 }
 
 class Transaction {
@@ -102,8 +181,63 @@ class Transaction {
 }
 
 class WalletNotifier extends StateNotifier<WalletData> {
-  WalletNotifier() : super(const WalletData()) {
+  final Ref ref;
+  Timer? _pollingTimer;
+  Position? _currentPos;
+  String? _activeZone;
+  int _lastOrbFarmBaseline = -1;
+
+  WalletNotifier(this.ref) : super(const WalletData()) {
     _fetchLive();
+    _startPolling();
+    _initGeofence();
+  }
+
+  Future<void> _initGeofence() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return;
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) return;
+
+    Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 5)
+    ).listen((Position position) {
+      _currentPos = position;
+      state = state.copyWith(userLat: position.latitude, userLng: position.longitude);
+      _evaluateZone();
+    });
+  }
+
+  void _evaluateZone() {
+    if (_currentPos == null) return;
+    String? newZone;
+    final liveZones = ref.read(zonesProvider);
+    for (var zone in liveZones) {
+       double distance = Geolocator.distanceBetween(
+           _currentPos!.latitude, _currentPos!.longitude,
+           zone.latitude, zone.longitude);
+       if (distance <= zone.radiusMeters) {
+          newZone = zone.name;
+          break;
+       }
+    }
+    if (_activeZone != newZone) {
+      _activeZone = newZone;
+      state = state.copyWith(activeZone: newZone);
+    }
+  }
+
+  void _startPolling() {
+    _pollingTimer = Timer.periodic(const Duration(seconds: 30), (_) => refresh());
+  }
+
+  @override
+  void dispose() {
+    _pollingTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _fetchLive() async {
@@ -111,11 +245,43 @@ class WalletNotifier extends StateNotifier<WalletData> {
       final data = await apiService.fetchWallet();
       state = WalletData(
         campusCoins: (data['campusCoins'] ?? 0).toDouble(),
-        stepsCount: (data['stepsCount'] ?? 0).toInt(),
+        actualSteps: (data['actualSteps'] ?? data['stepsCount'] ?? 0).toInt(),
+        availableSteps:
+            (data['availableSteps'] ?? data['stepsCount'] ?? 0).toInt(),
         orbs: (data['orbs'] ?? 14).toInt(),
+        stats: FitnessStats(
+          distanceKm: (data['distanceKm'] ?? 0).toDouble(),
+          kcal: (data['kcal'] ?? 0).toDouble(),
+          activeMin: (data['activeMin'] ?? 0).toInt(),
+        ),
       );
-      
-      pedometerService.init(state.stepsCount);
+
+      pedometerService.init(
+        initialActualSteps: state.actualSteps,
+        onStatsSynced: (actualSteps, availableSteps, distance, kcal, activeMin) {
+          state = state.copyWith(
+            actualSteps: actualSteps,
+            availableSteps: availableSteps ?? state.availableSteps,
+            stats: FitnessStats(distanceKm: distance, kcal: kcal, activeMin: activeMin),
+          );
+
+          if (_lastOrbFarmBaseline == -1) {
+            _lastOrbFarmBaseline = actualSteps;
+          }
+
+          if (_activeZone != null) {
+            int delta = actualSteps - _lastOrbFarmBaseline;
+            if (delta >= 50) {
+               _lastOrbFarmBaseline = actualSteps;
+               apiService.farmOrbs(delta).then((res) {
+                  state = state.copyWith(orbs: (res['newOrbs'] ?? state.orbs).toInt());
+               }).catchError((e) => logApiError('farmOrbs', e));
+            }
+          } else {
+            _lastOrbFarmBaseline = actualSteps;
+          }
+        },
+      );
     } catch (e) {
       logApiError('WalletNotifier', e);
     }
@@ -126,7 +292,11 @@ class WalletNotifier extends StateNotifier<WalletData> {
       final data = await apiService.convertSteps(steps);
       state = state.copyWith(
         campusCoins: (data['newCampusCoins'] ?? state.campusCoins).toDouble(),
-        stepsCount: (data['newStepsCount'] ?? state.stepsCount).toInt(),
+        actualSteps: (data['newActualSteps'] ?? state.actualSteps).toInt(),
+        availableSteps: (data['newAvailableSteps'] ??
+                data['newStepsCount'] ??
+                state.availableSteps)
+            .toInt(),
       );
       return true;
     } catch (e) {
@@ -152,17 +322,25 @@ class WalletNotifier extends StateNotifier<WalletData> {
   Future<void> refresh() => _fetchLive();
 }
 
-final walletProvider = StateNotifierProvider<WalletNotifier, WalletData>((ref) => WalletNotifier());
+final walletProvider = StateNotifierProvider<WalletNotifier, WalletData>(
+    (ref) => WalletNotifier(ref));
 
 final transactionsProvider = FutureProvider<List<Transaction>>((ref) async {
   final List<dynamic> response = await apiService.getTransactions();
-  return response.map((t) => Transaction.fromJson(t as Map<String, dynamic>)).toList();
+  return response
+      .map((t) => Transaction.fromJson(t as Map<String, dynamic>))
+      .toList();
 });
 
 // Convenience providers that pages already reference
-final currentCoinsProvider = Provider<double>((ref) => ref.watch(walletProvider).campusCoins);
-final currentStepsProvider = Provider<int>((ref) => ref.watch(walletProvider).stepsCount);
+final currentCoinsProvider =
+    Provider<double>((ref) => ref.watch(walletProvider).campusCoins);
+final currentStepsProvider =
+    Provider<int>((ref) => ref.watch(walletProvider).actualSteps);
+final availableStepsProvider =
+    Provider<int>((ref) => ref.watch(walletProvider).availableSteps);
 final orbsProvider = Provider<int>((ref) => ref.watch(walletProvider).orbs);
+final fitnessStatsProvider = Provider<FitnessStats>((ref) => ref.watch(walletProvider).stats);
 
 // =============================================================================
 // Stocks (Markets)
@@ -176,29 +354,60 @@ class Stock {
   final double lastDayPercentageChange;
   final bool isUp;
   final List<double> history;
-  Stock(this.name, this.symbol, this.currentPrice, this.previousPrice,
-      this.percentageChange, this.lastDayPercentageChange, this.isUp, this.history);
+  Stock(
+      this.name,
+      this.symbol,
+      this.currentPrice,
+      this.previousPrice,
+      this.percentageChange,
+      this.lastDayPercentageChange,
+      this.isUp,
+      this.history);
 }
 
 class MarketsNotifier extends StateNotifier<List<Stock>> {
+  Timer? _pollingTimer;
+
   MarketsNotifier() : super([]) {
     _fetchLive();
+    _startPolling();
+  }
+
+  void _startPolling() {
+    _pollingTimer = Timer.periodic(const Duration(seconds: 5), (_) => _fetchLive());
+  }
+
+  @override
+  void dispose() {
+    _pollingTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _fetchLive() async {
     try {
       final liveData = await apiService.fetchStocks();
-      state = liveData.map<Stock>((json) => Stock(
-        json['name'] ?? 'Unknown',
-        json['stockId'] ?? 'UNK',
-        (json['price'] ?? 0.0).toDouble(),
-        (json['previousPrice'] ?? 0.0).toDouble(),
-        ((json['price'] ?? 1.0) - (json['previousPrice'] ?? 0.0)) /
-            ((json['previousPrice'] == 0 ? 1 : json['previousPrice'])) * 100,
-        (json['lastDayPercentageChange'] ?? 0.0).toDouble(),
-        (json['price'] ?? 0.0) >= (json['previousPrice'] ?? 0.0),
-        (json['history'] as List?)?.map((e) => (e as num).toDouble()).toList() ?? [0.0],
-      )).toList();
+      state = liveData
+          .map<Stock>((json) => Stock(
+                json['name'] ?? 'Unknown',
+                json['stockId'] ?? 'UNK',
+                (json['price'] ?? 0.0).toDouble(),
+                (json['previousPrice'] ?? 0.0).toDouble(),
+                ((json['price'] ?? 1.0) - (json['previousPrice'] ?? 0.0)) /
+                    ((json['previousPrice'] == 0 ? 1 : json['previousPrice'])) *
+                    100,
+                (json['lastDayPercentageChange'] ?? 0.0).toDouble(),
+                (json['price'] ?? 0.0) >= (json['previousPrice'] ?? 0.0),
+                (json['history'] as List?)
+                        ?.map((e) {
+                          if (e is Map<String, dynamic>) {
+                            return (e['price'] as num).toDouble();
+                          }
+                          return (e as num).toDouble();
+                        })
+                        .toList() ??
+                    [0.0],
+              ))
+          .toList();
     } catch (e) {
       logApiError('MarketsNotifier', e);
     }
@@ -207,7 +416,8 @@ class MarketsNotifier extends StateNotifier<List<Stock>> {
   Future<void> refresh() => _fetchLive();
 }
 
-final marketsProvider = StateNotifierProvider<MarketsNotifier, List<Stock>>((ref) {
+final marketsProvider =
+    StateNotifierProvider<MarketsNotifier, List<Stock>>((ref) {
   return MarketsNotifier();
 });
 
@@ -251,16 +461,16 @@ class PortfolioNotifier extends StateNotifier<List<PortfolioHolding>> {
       state = portfolioData
           .where((p) => (p['quantity'] ?? 0) > 0)
           .map<PortfolioHolding>((p) {
-            final stock = stockMap[p['stockId']];
-            return PortfolioHolding(
-              stockId: p['stockId'],
-              quantity: (p['quantity'] ?? 0).toInt(),
-              name: stock?['name'] ?? p['stockId'],
-              currentPrice: (stock?['price'] ?? 0.0).toDouble(),
-              previousPrice: (stock?['previousPrice'] ?? 0.0).toDouble(),
-              avgPrice: (p['avgPrice'] ?? stock?['price'] ?? 0.0).toDouble(),
-            );
-          }).toList();
+        final stock = stockMap[p['stockId']];
+        return PortfolioHolding(
+          stockId: p['stockId'],
+          quantity: (p['quantity'] ?? 0).toInt(),
+          name: stock?['name'] ?? p['stockId'],
+          currentPrice: (stock?['price'] ?? 0.0).toDouble(),
+          previousPrice: (stock?['previousPrice'] ?? 0.0).toDouble(),
+          avgPrice: (p['avgPrice'] ?? stock?['price'] ?? 0.0).toDouble(),
+        );
+      }).toList();
     } catch (e) {
       logApiError('PortfolioNotifier', e);
     }
@@ -269,7 +479,8 @@ class PortfolioNotifier extends StateNotifier<List<PortfolioHolding>> {
   Future<void> refresh() => _fetchLive();
 }
 
-final portfolioProvider = StateNotifierProvider<PortfolioNotifier, List<PortfolioHolding>>((ref) {
+final portfolioProvider =
+    StateNotifierProvider<PortfolioNotifier, List<PortfolioHolding>>((ref) {
   return PortfolioNotifier();
 });
 
@@ -280,7 +491,7 @@ class StockOrder {
   final String stockId;
   final int quantity;
   final double limitPrice;
-  final String type;   // 'buy' | 'sell'
+  final String type; // 'buy' | 'sell'
   final String status; // 'pending' | 'executed'
   final DateTime createdAt;
   const StockOrder({
@@ -294,7 +505,9 @@ class StockOrder {
 }
 
 class PendingOrdersNotifier extends StateNotifier<List<StockOrder>> {
-  PendingOrdersNotifier() : super([]) { _fetchLive(); }
+  PendingOrdersNotifier() : super([]) {
+    _fetchLive();
+  }
 
   Future<void> _fetchLive() async {
     try {
@@ -306,19 +519,21 @@ class PendingOrdersNotifier extends StateNotifier<List<StockOrder>> {
   }
 
   StockOrder _fromJson(dynamic j) => StockOrder(
-    stockId: j['stockId'] ?? '',
-    quantity: (j['quantity'] ?? 0).toInt(),
-    limitPrice: (j['limitPrice'] ?? 0.0).toDouble(),
-    type: j['type'] ?? 'buy',
-    status: j['status'] ?? 'pending',
-    createdAt: DateTime.tryParse(j['createdAt'] ?? '') ?? DateTime.now(),
-  );
+        stockId: j['stockId'] ?? '',
+        quantity: (j['quantity'] ?? 0).toInt(),
+        limitPrice: (j['limitPrice'] ?? 0.0).toDouble(),
+        type: j['type'] ?? 'buy',
+        status: j['status'] ?? 'pending',
+        createdAt: DateTime.tryParse(j['createdAt'] ?? '') ?? DateTime.now(),
+      );
 
   Future<void> refresh() => _fetchLive();
 }
 
 class CompletedOrdersNotifier extends StateNotifier<List<StockOrder>> {
-  CompletedOrdersNotifier() : super([]) { _fetchLive(); }
+  CompletedOrdersNotifier() : super([]) {
+    _fetchLive();
+  }
 
   Future<void> _fetchLive() async {
     try {
@@ -330,22 +545,24 @@ class CompletedOrdersNotifier extends StateNotifier<List<StockOrder>> {
   }
 
   StockOrder _fromJson(dynamic j) => StockOrder(
-    stockId: j['stockId'] ?? '',
-    quantity: (j['quantity'] ?? 0).toInt(),
-    limitPrice: (j['limitPrice'] ?? 0.0).toDouble(),
-    type: j['type'] ?? 'buy',
-    status: j['status'] ?? 'executed',
-    createdAt: DateTime.tryParse(j['createdAt'] ?? '') ?? DateTime.now(),
-  );
+        stockId: j['stockId'] ?? '',
+        quantity: (j['quantity'] ?? 0).toInt(),
+        limitPrice: (j['limitPrice'] ?? 0.0).toDouble(),
+        type: j['type'] ?? 'buy',
+        status: j['status'] ?? 'executed',
+        createdAt: DateTime.tryParse(j['createdAt'] ?? '') ?? DateTime.now(),
+      );
 
   Future<void> refresh() => _fetchLive();
 }
 
-final pendingOrdersProvider = StateNotifierProvider<PendingOrdersNotifier, List<StockOrder>>((ref) {
+final pendingOrdersProvider =
+    StateNotifierProvider<PendingOrdersNotifier, List<StockOrder>>((ref) {
   return PendingOrdersNotifier();
 });
 
-final completedOrdersProvider = StateNotifierProvider<CompletedOrdersNotifier, List<StockOrder>>((ref) {
+final completedOrdersProvider =
+    StateNotifierProvider<CompletedOrdersNotifier, List<StockOrder>>((ref) {
   return CompletedOrdersNotifier();
 });
 
@@ -387,9 +604,12 @@ class ChallengesNotifier extends StateNotifier<List<Challenge>> {
     try {
       final liveData = await apiService.fetchBets();
       state = liveData.map<Challenge>((json) {
-        final rt = DateTime.tryParse(json['resultTime'] ?? '') ?? DateTime.now();
+        final rt =
+            DateTime.tryParse(json['resultTime'] ?? '') ?? DateTime.now();
         final diff = rt.difference(DateTime.now());
-        final timeLeft = diff.isNegative ? "Closed" : "${diff.inHours}h ${diff.inMinutes % 60}m";
+        final timeLeft = diff.isNegative
+            ? "Closed"
+            : "${diff.inHours}h ${diff.inMinutes % 60}m";
 
         return Challenge(
           json['betId'] ?? '',
@@ -412,6 +632,7 @@ class ChallengesNotifier extends StateNotifier<List<Challenge>> {
   Future<void> refresh() => _fetchLive();
 }
 
-final challengesProvider = StateNotifierProvider<ChallengesNotifier, List<Challenge>>((ref) {
+final challengesProvider =
+    StateNotifierProvider<ChallengesNotifier, List<Challenge>>((ref) {
   return ChallengesNotifier();
 });

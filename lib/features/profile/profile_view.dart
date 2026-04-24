@@ -20,7 +20,9 @@ class ProfileView extends ConsumerWidget {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          title: const Text("CAMPUS IDENTITY", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 2)),
+          title: const Text("CAMPUS IDENTITY",
+              style: TextStyle(
+                  fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 2)),
           centerTitle: true,
         ),
         body: SingleChildScrollView(
@@ -45,7 +47,10 @@ class ProfileView extends ConsumerWidget {
               ),
               Text(
                 "GLOBAL RANK: #1 • ACTIVE TRADER",
-                style: TextStyle(color: Colors.grey.shade400, fontSize: 12, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                    color: Colors.grey.shade400,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold),
               ),
               // Live Metrics
               Container(
@@ -54,7 +59,8 @@ class ProfileView extends ConsumerWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     _buildMetric("STEPS", "$steps", Colors.white),
-                    _buildMetric("COINS", "${coins.toStringAsFixed(1)}", Colors.amber),
+                    _buildMetric(
+                        "COINS", "${coins.toStringAsFixed(1)}", Colors.amber),
                     _buildMetric("ORBS", "$orbs", Colors.purpleAccent),
                   ],
                 ),
@@ -64,17 +70,23 @@ class ProfileView extends ConsumerWidget {
 
               // Bets History
               _buildSectionHeader("PAST BET RECORDS (STAKING)"),
-              _buildHistoryCard("Tech Stocks Bull Run", "Win", "+124 Coins", Colors.greenAccent),
-              _buildHistoryCard("Exam Week Predictor", "Loss", "-50 Coins", Colors.redAccent),
-              _buildHistoryCard("Weekend Hackathon", "Pending", "Lock: 100", Colors.orangeAccent),
+              _buildHistoryCard("Tech Stocks Bull Run", "Win", "+124 Coins",
+                  Colors.greenAccent),
+              _buildHistoryCard(
+                  "Exam Week Predictor", "Loss", "-50 Coins", Colors.redAccent),
+              _buildHistoryCard("Weekend Hackathon", "Pending", "Lock: 100",
+                  Colors.orangeAccent),
 
               const SizedBox(height: 32),
 
               // Group Challenges History (PnL)
               _buildSectionHeader("GROUP CHALLENGES (PnL)"),
-              _buildHistoryCard("Hostel A vs B Sprint", "Profit", "+1,200 Coins", Colors.greenAccent),
-              _buildHistoryCard("CS vs IT Hackathon", "Profit", "+5,000 Coins & Elite Badge", Colors.purpleAccent),
-              _buildHistoryCard("1st Year Steps Challenge", "Loss", "-300 Coins", Colors.redAccent),
+              _buildHistoryCard("Hostel A vs B Sprint", "Profit",
+                  "+1,200 Coins", Colors.greenAccent),
+              _buildHistoryCard("CS vs IT Hackathon", "Profit",
+                  "+5,000 Coins & Elite Badge", Colors.purpleAccent),
+              _buildHistoryCard("1st Year Steps Challenge", "Loss",
+                  "-300 Coins", Colors.redAccent),
 
               const SizedBox(height: 48),
             ],
@@ -91,7 +103,11 @@ class ProfileView extends ConsumerWidget {
         alignment: Alignment.centerLeft,
         child: Text(
           title,
-          style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.5),
+          style: TextStyle(
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+              letterSpacing: 1.5),
         ),
       ),
     );
@@ -100,14 +116,22 @@ class ProfileView extends ConsumerWidget {
   Widget _buildMetric(String label, String value, Color color) {
     return Column(
       children: [
-        Text(value, style: TextStyle(color: color, fontSize: 24, fontWeight: FontWeight.bold)),
+        Text(value,
+            style: TextStyle(
+                color: color, fontSize: 24, fontWeight: FontWeight.bold)),
         const SizedBox(height: 4),
-        Text(label, style: TextStyle(color: Colors.grey.shade600, fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold)),
+        Text(label,
+            style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 10,
+                letterSpacing: 1.5,
+                fontWeight: FontWeight.bold)),
       ],
     );
   }
 
-  Widget _buildHistoryCard(String title, String outcome, String pnl, Color accent) {
+  Widget _buildHistoryCard(
+      String title, String outcome, String pnl, Color accent) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -123,13 +147,18 @@ class ProfileView extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                Text(title,
+                    style: const TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
-                Text("Outcome: $outcome", style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
+                Text("Outcome: $outcome",
+                    style:
+                        TextStyle(color: Colors.grey.shade400, fontSize: 12)),
               ],
             ),
           ),
-          Text(pnl, style: TextStyle(color: accent, fontWeight: FontWeight.bold)),
+          Text(pnl,
+              style: TextStyle(color: accent, fontWeight: FontWeight.bold)),
         ],
       ),
     );

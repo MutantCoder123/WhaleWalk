@@ -112,7 +112,7 @@ const matchOrdersForStock = async (stockId) => {
                 // 5. update stock price
                 await Stock.findOneAndUpdate(
                     { stockId },
-                    { $set: { price: executionPrice } }
+                    { $set: { price: executionPrice, previousPrice: stock.price } }
                 )
 
                 // 6. deduct matched quantity from orders locally

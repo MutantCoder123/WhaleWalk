@@ -6,6 +6,7 @@ import jwt from "jsonwebtoken"
 import mongoose from "mongoose";
 import { Wallet } from "../models/wallet.model.js";
 import { Steps } from "../models/step.model.js";
+import { UserStats } from "../models/userStats.model.js";
 
 
 const generateAccessAndRefereshTokens = async(userId) =>{
@@ -142,7 +143,14 @@ const registerUser = asyncHandler( async (req, res) => {
 
     await Steps.create({
     username: user.username,
-    stepsCount: 10000
+    actualSteps: 0,
+    availableSteps: 0,
+    stepsCount: 0,
+    lastSyncedOn: ""
+    })
+
+    await UserStats.create({
+    username: user.username
     })
 
     const createdUser = await User.findById(user._id).select(
@@ -314,11 +322,17 @@ const changeCurrentPassword = asyncHandler(async(req, res) => {
 
 
 const getCurrentUser = asyncHandler(async(req, res) => {
+    const user = await User.findById(req.user._id)
+        .populate("inventory")
+        .populate("activeBadge")
+        .populate("activeTitle")
+        .select("-password -refreshToken");
+
     return res
     .status(200)
     .json(new ApiResponse(
         200,
-        req.user,
+        user,
         "User fetched successfully"
     ))
 })
