@@ -102,6 +102,44 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> with SingleTickerPr
   Widget build(BuildContext context) {
     final mode = ref.watch(appModeProvider);
 
+    // Listen for new achievements to show notifications globally
+    ref.listen(achievementProvider, (previous, next) {
+      if (next.newlyUnlocked.isNotEmpty) {
+        for (final ach in next.newlyUnlocked) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.stars_rounded, color: Colors.amber),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("ACHIEVEMENT UNLOCKED!", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        Text(ach.title, style: const TextStyle(fontSize: 11)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: const Color(0xFF1E1E2C),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 4),
+              action: SnackBarAction(
+                label: 'VIEW',
+                textColor: Colors.amber,
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileView())),
+              ),
+            ),
+          );
+        }
+        // Clear the newlyUnlocked list so we don't show the same Toast again
+        ref.read(achievementProvider.notifier).clearNewlyUnlocked();
+      }
+    });
+
     return Scaffold(
       key: mainScaffoldKey,
       drawer: Drawer(

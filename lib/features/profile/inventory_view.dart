@@ -370,7 +370,17 @@ class _InventoryViewState extends ConsumerState<InventoryView>
                   color: rarityColor.withOpacity(0.05),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, color: rarityColor, size: 20),
+                child: item.imageUrl != null && item.imageUrl!.isNotEmpty
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(22),
+                        child: Image.network(
+                          ApiService().getMediaUrl(item.imageUrl!),
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) =>
+                              Icon(icon, color: rarityColor, size: 20),
+                        ),
+                      )
+                    : Icon(icon, color: rarityColor, size: 20),
               ),
               if (item.isEquipped)
                 Positioned(
@@ -488,8 +498,21 @@ class _InventoryViewState extends ConsumerState<InventoryView>
                     const SizedBox(height: 24),
                     Container(
                       width: 80, height: 80,
-                      decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(24), border: Border.all(color: color.withOpacity(0.3))),
-                      child: Icon(icon, color: color, size: 40),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.12), 
+                        borderRadius: BorderRadius.circular(24), 
+                        border: Border.all(color: color.withOpacity(0.3))
+                      ),
+                      child: item.imageUrl != null && item.imageUrl!.isNotEmpty
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(23),
+                              child: Image.network(
+                                ApiService().getMediaUrl(item.imageUrl!),
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, __, ___) => Icon(icon, color: color, size: 40),
+                              ),
+                            )
+                          : Icon(icon, color: color, size: 40),
                     ),
                     const SizedBox(height: 20),
                     Text(item.name, style: GoogleFonts.outfit(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: 0.5), textAlign: TextAlign.center),

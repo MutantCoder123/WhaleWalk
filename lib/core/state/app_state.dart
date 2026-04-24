@@ -1005,13 +1005,23 @@ class AchievementData {
 
 class AchievementState {
   final List<AchievementData> achievements;
+  final List<AchievementData> newlyUnlocked;
   final bool isLoading;
 
-  const AchievementState({this.achievements = const [], this.isLoading = false});
+  const AchievementState({
+    this.achievements = const [],
+    this.newlyUnlocked = const [],
+    this.isLoading = false,
+  });
 
-  AchievementState copyWith({List<AchievementData>? achievements, bool? isLoading}) =>
+  AchievementState copyWith({
+    List<AchievementData>? achievements,
+    List<AchievementData>? newlyUnlocked,
+    bool? isLoading,
+  }) =>
       AchievementState(
         achievements: achievements ?? this.achievements,
+        newlyUnlocked: newlyUnlocked ?? this.newlyUnlocked,
         isLoading: isLoading ?? this.isLoading,
       );
 }
@@ -1026,6 +1036,10 @@ class AchievementNotifier extends StateNotifier<AchievementState> {
     try {
       final data = await apiService.fetchAchievements();
       final list = data['achievements'] as List? ?? [];
+      final newRaw = data['newlyUnlocked'] as List? ?? [];
+
+      final recentlyUnlockedIds = newRaw.map((e) => e.toString()).toList();
+
       final achievements = list.map<AchievementData>((item) {
         return AchievementData(
           id: item['_id']?.toString() ?? '',
@@ -1038,10 +1052,32 @@ class AchievementNotifier extends StateNotifier<AchievementState> {
           isUnlocked: item['isUnlocked'] ?? false,
         );
       }).toList();
-      state = state.copyWith(achievements: achievements, isLoading: false);
+
+      final newlyUnlocked = achievements
+          .where((a) => recentlyUnlockedIds.contains(a.id))
+          .toList();
+
+      state = state.copyWith(
+        achievements: achievements,
+        newlyUnlocked: newlyUnlocked,
+        isLoading: false,
+      );
     } catch (e) {
       logApiError('AchievementNotifier', e);
       state = state.copyWith(isLoading: false);
+    }
+  }
+
+  void clearNewlyUnlocked() {
+    state = state.copyWith(newlyUnlocked: []);
+  }
+
+  Future<void> acknowledge() async {
+    try {
+      await apiService.acknowledgeAchievements();
+      clearNewlyUnlocked();
+    } catch (e) {
+      logApiError('AchievementAcknowledgement', e);
     }
   }
 

@@ -21,6 +21,12 @@ class _ProfileViewState extends ConsumerState<ProfileView> with SingleTickerProv
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (_tabController.index == 1 && !_tabController.indexIsChanging) {
+        // Acknowledge achievements when user views the tab
+        ref.read(achievementProvider.notifier).acknowledge();
+      }
+    });
   }
 
   @override
@@ -80,18 +86,33 @@ class _ProfileViewState extends ConsumerState<ProfileView> with SingleTickerProv
                     Stack(
                       alignment: Alignment.center,
                       children: [
-                        if (equippedBadge.isNotEmpty)
-                          const SizedBox(width: 140, height: 140, child: CircularProgressIndicator(value: 1, strokeWidth: 2, color: Colors.amber)),
+                        if (equippedBadge.isNotEmpty && equippedBadge.first.imageUrl != null && equippedBadge.first.imageUrl!.isNotEmpty)
+                          SizedBox(
+                            width: 150, height: 150,
+                            child: Opacity(
+                              opacity: 0.8,
+                              child: Image.network(
+                                ApiService().getMediaUrl(equippedBadge.first.imageUrl!),
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+                          ),
                         Container(
-                          decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 20)]),
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle, 
+                            border: Border.all(
+                              color: equippedBadge.isNotEmpty ? _getRarityColor(equippedBadge.first.rarity) : Colors.amber, 
+                              width: 3
+                            ),
+                            boxShadow: [BoxShadow(color: equippedBadge.isNotEmpty ? _getRarityColor(equippedBadge.first.rarity).withOpacity(0.3) : Colors.black.withOpacity(0.5), blurRadius: 20)]
+                          ),
                           child: const CircleAvatar(
                             radius: 54,
                             backgroundColor: Color(0xFF16171B),
                             child: CircleAvatar(radius: 51, backgroundImage: NetworkImage('https://api.dicebear.com/7.x/avataaars/png?seed=Felix'), backgroundColor: Colors.transparent),
                           ),
                         ),
-                        if (equippedBadge.isNotEmpty)
-                          Positioned(bottom: 0, right: 0, child: Container(padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: const Color(0xFF16171B), shape: BoxShape.circle, border: Border.all(color: const Color(0xFFFFD700), width: 1.5)), child: const Icon(Icons.military_tech_rounded, color: Color(0xFFFFD700), size: 18))),
                       ],
                     ),
                     const SizedBox(height: 16),
@@ -107,8 +128,25 @@ class _ProfileViewState extends ConsumerState<ProfileView> with SingleTickerProv
                       const SizedBox(height: 4),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                        decoration: BoxDecoration(color: const Color(0xFFFFD700).withOpacity(0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.2))),
-                        child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.military_tech_rounded, color: Color(0xFFFFD700), size: 14), const SizedBox(width: 6), Text(equippedBadge.first.name, style: GoogleFonts.outfit(color: const Color(0xFFFFD700), fontSize: 11, fontWeight: FontWeight.bold))]),
+                        decoration: BoxDecoration(
+                          color: _getRarityColor(equippedBadge.first.rarity).withOpacity(0.1), 
+                          borderRadius: BorderRadius.circular(12), 
+                          border: Border.all(color: _getRarityColor(equippedBadge.first.rarity).withOpacity(0.2))
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min, 
+                          children: [
+                            equippedBadge.first.imageUrl != null && equippedBadge.first.imageUrl!.isNotEmpty
+                                ? Image.network(
+                                    ApiService().getMediaUrl(equippedBadge.first.imageUrl!),
+                                    width: 14, height: 14, fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => Icon(Icons.military_tech_rounded, color: _getRarityColor(equippedBadge.first.rarity), size: 14),
+                                  )
+                                : Icon(Icons.military_tech_rounded, color: _getRarityColor(equippedBadge.first.rarity), size: 14),
+                            const SizedBox(width: 6), 
+                            Text(equippedBadge.first.name, style: GoogleFonts.outfit(color: _getRarityColor(equippedBadge.first.rarity), fontSize: 11, fontWeight: FontWeight.bold))
+                          ]
+                        ),
                       ),
                     ],
                     const SizedBox(height: 4),

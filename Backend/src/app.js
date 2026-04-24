@@ -19,6 +19,7 @@ app.use(cors({
 app.use(express.json({limit: "25kb"}))
 app.use(express.urlencoded({ extended: true, limit: "16kb" }))
 app.use(express.static("public"))
+app.use("/media", express.static("media"))
 app.use(cookieParser())
 
 app.get("/health", (_, res) => {
