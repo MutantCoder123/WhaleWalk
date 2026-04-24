@@ -6,6 +6,7 @@ import { StockTrade } from "../models/stocktrade.model.js";
 import { UserStocks } from "../models/userstocks.model.js";
 import { Wallet } from "../models/wallet.model.js";
 import { Transaction } from "../models/transaction.model.js";
+import { User } from "../models/user.model.js";
 import { matchOrdersForStock } from "../utils/orderMatcher.js";
 
 // get all stocks with current price
@@ -295,13 +296,47 @@ const createStock = asyncHandler(async (req, res) => {
 
 const deleteStock = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const stock = await Stock.findByIdAndDelete(id);
-
+    
+    const stock = await Stock.findById(id);
     if (!stock) {
         throw new ApiError(404, "Stock not found");
     }
 
-    return res.status(200).json(new ApiResponse(200, stock, "Stock deleted successfully"));
+    const { stockId, price, name } = stock;
+
+    // 1. Find all user holdings for this stock
+    const userHoldings = await UserStocks.find({ stockId, quantity: { $gt: 0 } });
+
+    // 2. Refund each user and log transactions
+    for (const holding of userHoldings) {
+        const refundAmount = holding.quantity * price;
+        
+        // Update Wallet
+        await Wallet.findOneAndUpdate(
+            { username: holding.username },
+            { $inc: { campusCoins: refundAmount } }
+        );
+
+        // Find user to get ID for Transaction
+        const user = await User.findOne({ username: holding.username });
+        if (user) {
+            await Transaction.create({
+                userId: user._id,
+                title: `Refund: ${name} deleted`,
+                amount: refundAmount,
+                isPositive: true
+            });
+        }
+    }
+
+    // 3. Cleanup related records
+    await UserStocks.deleteMany({ stockId });
+    await StockTrade.deleteMany({ stockId, status: "pending" }); // Cancel pending orders
+
+    // 4. Finally delete the stock
+    await Stock.findByIdAndDelete(id);
+
+    return res.status(200).json(new ApiResponse(200, stock, `Stock ${name} deleted and users refunded successfully`));
 });
 
 export { getAllStocks, getUserStocks, placeOrder, getMyOrders, getCompletedOrders , createStock, deleteStock}

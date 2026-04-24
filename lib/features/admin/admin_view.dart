@@ -50,6 +50,7 @@ class _AdminViewState extends ConsumerState<AdminView> {
         _bets = results[1];
         _zones = results[2];
       });
+
     } catch (e) {
       setState(() {
         _error = e.toString().replaceFirst('Exception: ', '');
@@ -133,6 +134,8 @@ class _AdminViewState extends ConsumerState<AdminView> {
     }
   }
 
+
+
   Future<void> _openEditZoneDialog(Map<String, dynamic> zone) async {
     final updated = await showDialog<bool>(
       context: context,
@@ -205,8 +208,8 @@ class _AdminViewState extends ConsumerState<AdminView> {
         body: CustomScrollView(
           slivers: [
             SliverAppBar(
-              toolbarHeight: 60,
-              expandedHeight: 104,
+              toolbarHeight: 48,
+              expandedHeight: 50,
               pinned: true,
               backgroundColor: Colors.transparent,
               elevation: 0,
@@ -226,13 +229,13 @@ class _AdminViewState extends ConsumerState<AdminView> {
                   child: Container(
                     color: const Color(0xFF101010).withOpacity(0.85),
                     alignment: Alignment.centerLeft,
-                    padding: const EdgeInsets.fromLTRB(64, 0, 72, 44),
+                    padding: const EdgeInsets.fromLTRB(60, 38, 72, 5),
                     child: Text(
                       'ADMIN CONSOLE',
                       style: GoogleFonts.lexend(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 22,
-                        letterSpacing: 1.5,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 19,
+                        letterSpacing: 1,
                         color: Colors.white,
                       ),
                     ),
@@ -265,7 +268,7 @@ class _AdminViewState extends ConsumerState<AdminView> {
     }
 
     return ListView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(15),
       children: [
         GridView.count(
           shrinkWrap: true,
@@ -306,6 +309,7 @@ class _AdminViewState extends ConsumerState<AdminView> {
                 onSetResult: _openSetResultDialog,
               ))),
             ),
+
           ],
         ),
         const SizedBox(height: 36),

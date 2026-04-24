@@ -124,6 +124,12 @@ class WalletData {
   final String? activeZone;
   final double? userLat;
   final double? userLng;
+  final int stepsToNextOrb;
+  final int stepsToNearestZone;
+  final String? nearestZoneName;
+  final int stepGoal;
+  final double distanceGoal;
+
   const WalletData({
     this.campusCoins = 10000,
     this.orbs = 14,
@@ -133,6 +139,11 @@ class WalletData {
     this.activeZone,
     this.userLat,
     this.userLng,
+    this.stepsToNextOrb = 50,
+    this.stepsToNearestZone = 0,
+    this.nearestZoneName,
+    this.stepGoal = 10000,
+    this.distanceGoal = 8.0,
   });
 
   WalletData copyWith({
@@ -144,6 +155,11 @@ class WalletData {
     String? activeZone,
     double? userLat,
     double? userLng,
+    int? stepsToNextOrb,
+    int? stepsToNearestZone,
+    String? nearestZoneName,
+    int? stepGoal,
+    double? distanceGoal,
   }) =>
       WalletData(
         campusCoins: campusCoins ?? this.campusCoins,
@@ -154,6 +170,11 @@ class WalletData {
         activeZone: activeZone ?? this.activeZone,
         userLat: userLat ?? this.userLat,
         userLng: userLng ?? this.userLng,
+        stepsToNextOrb: stepsToNextOrb ?? this.stepsToNextOrb,
+        stepsToNearestZone: stepsToNearestZone ?? this.stepsToNearestZone,
+        nearestZoneName: nearestZoneName ?? this.nearestZoneName,
+        stepGoal: stepGoal ?? this.stepGoal,
+        distanceGoal: distanceGoal ?? this.distanceGoal,
       );
 }
 
@@ -191,6 +212,11 @@ class WalletNotifier extends StateNotifier<WalletData> {
     _fetchLive();
     _startPolling();
     _initGeofence();
+    
+    // Listen to zone changes to re-evaluate geofencing immediately
+    ref.listen(zonesProvider, (previous, next) {
+      _evaluateZone();
+    });
   }
 
   Future<void> _initGeofence() async {
@@ -213,21 +239,55 @@ class WalletNotifier extends StateNotifier<WalletData> {
 
   void _evaluateZone() {
     if (_currentPos == null) return;
+    
     String? newZone;
     final liveZones = ref.read(zonesProvider);
+    
+    double minDistanceToBoundary = double.infinity;
+    String? nearestZone;
+
     for (var zone in liveZones) {
        double distance = Geolocator.distanceBetween(
            _currentPos!.latitude, _currentPos!.longitude,
            zone.latitude, zone.longitude);
+       
+       double distanceToBoundary = distance - zone.radiusMeters;
+       
        if (distance <= zone.radiusMeters) {
           newZone = zone.name;
           break;
        }
+
+       if (distanceToBoundary < minDistanceToBoundary) {
+         minDistanceToBoundary = distanceToBoundary;
+         nearestZone = zone.name;
+       }
     }
+
     if (_activeZone != newZone) {
       _activeZone = newZone;
-      state = state.copyWith(activeZone: newZone);
+      // Reset baseline when entering/leaving zone
+      _lastOrbFarmBaseline = state.actualSteps;
     }
+
+    int stepsToNextOrb = 50;
+    if (_activeZone != null) {
+      int progress = state.actualSteps - _lastOrbFarmBaseline;
+      stepsToNextOrb = (50 - progress).clamp(0, 50);
+    }
+
+    int stepsToNearestZone = 0;
+    if (newZone == null && nearestZone != null) {
+       // 0.7 meters per step average
+       stepsToNearestZone = (minDistanceToBoundary / 0.7).ceil();
+    }
+
+    state = state.copyWith(
+      activeZone: newZone,
+      stepsToNextOrb: stepsToNextOrb,
+      stepsToNearestZone: stepsToNearestZone,
+      nearestZoneName: nearestZone,
+    );
   }
 
   void _startPolling() {
@@ -243,18 +303,23 @@ class WalletNotifier extends StateNotifier<WalletData> {
   Future<void> _fetchLive() async {
     try {
       final data = await apiService.fetchWallet();
-      state = WalletData(
+      state = state.copyWith(
         campusCoins: (data['campusCoins'] ?? 0).toDouble(),
         actualSteps: (data['actualSteps'] ?? data['stepsCount'] ?? 0).toInt(),
         availableSteps:
             (data['availableSteps'] ?? data['stepsCount'] ?? 0).toInt(),
         orbs: (data['orbs'] ?? 14).toInt(),
+        stepGoal: (data['stepGoal'] ?? 10000).toInt(),
+        distanceGoal: (data['distanceGoal'] ?? 8.0).toDouble(),
         stats: FitnessStats(
           distanceKm: (data['distanceKm'] ?? 0).toDouble(),
           kcal: (data['kcal'] ?? 0).toDouble(),
           activeMin: (data['activeMin'] ?? 0).toInt(),
         ),
       );
+      
+      // Also refresh history
+      ref.invalidate(historyProvider);
 
       pedometerService.init(
         initialActualSteps: state.actualSteps,
@@ -269,10 +334,14 @@ class WalletNotifier extends StateNotifier<WalletData> {
             _lastOrbFarmBaseline = actualSteps;
           }
 
+          int stepsToNextOrb = 50;
           if (_activeZone != null) {
             int delta = actualSteps - _lastOrbFarmBaseline;
+            stepsToNextOrb = (50 - delta).clamp(0, 50);
+
             if (delta >= 50) {
                _lastOrbFarmBaseline = actualSteps;
+               stepsToNextOrb = 50;
                apiService.farmOrbs(delta).then((res) {
                   state = state.copyWith(orbs: (res['newOrbs'] ?? state.orbs).toInt());
                }).catchError((e) => logApiError('farmOrbs', e));
@@ -280,6 +349,13 @@ class WalletNotifier extends StateNotifier<WalletData> {
           } else {
             _lastOrbFarmBaseline = actualSteps;
           }
+
+          state = state.copyWith(
+            actualSteps: actualSteps,
+            availableSteps: availableSteps ?? state.availableSteps,
+            stats: FitnessStats(distanceKm: distance, kcal: kcal, activeMin: activeMin),
+            stepsToNextOrb: stepsToNextOrb,
+          );
         },
       );
     } catch (e) {
@@ -320,10 +396,26 @@ class WalletNotifier extends StateNotifier<WalletData> {
   }
 
   Future<void> refresh() => _fetchLive();
+
+  Future<void> updateGoals({int? steps, double? distance}) async {
+    try {
+      final data = await apiService.updateFitnessGoals(stepGoal: steps, distanceGoal: distance);
+      state = state.copyWith(
+        stepGoal: (data['stepGoal'] ?? state.stepGoal).toInt(),
+        distanceGoal: (data['distanceGoal'] ?? state.distanceGoal).toDouble(),
+      );
+    } catch (e) {
+       logApiError('updateGoals', e);
+    }
+  }
 }
 
 final walletProvider = StateNotifierProvider<WalletNotifier, WalletData>(
     (ref) => WalletNotifier(ref));
+
+final historyProvider = FutureProvider<List<dynamic>>((ref) async {
+  return await apiService.fetchActivityHistory();
+});
 
 final transactionsProvider = FutureProvider<List<Transaction>>((ref) async {
   final List<dynamic> response = await apiService.getTransactions();
@@ -632,7 +724,330 @@ class ChallengesNotifier extends StateNotifier<List<Challenge>> {
   Future<void> refresh() => _fetchLive();
 }
 
-final challengesProvider =
-    StateNotifierProvider<ChallengesNotifier, List<Challenge>>((ref) {
+final challengesProvider = StateNotifierProvider<ChallengesNotifier, List<Challenge>>((ref) {
   return ChallengesNotifier();
+});
+
+// ---------------------------------------------------------------------------
+// Timed Challenges (Tasks like "Walk 10k steps")
+// ---------------------------------------------------------------------------
+class TaskChallenge {
+  final String id;
+  final String title;
+  final String description;
+  final String metric;
+  final int targetValue;
+  final int progress;
+  final String duration;
+  final int intensity;
+  final int rewardCoins;
+  final int rewardOrbs;
+  final String status; // 'ACTIVE', 'COMPLETED', 'CLAIMED', 'EXPIRED'
+  final DateTime expiresAt;
+
+  TaskChallenge({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.metric,
+    required this.targetValue,
+    required this.progress,
+    required this.duration,
+    required this.intensity,
+    required this.rewardCoins,
+    required this.rewardOrbs,
+    required this.status,
+    required this.expiresAt,
+  });
+}
+
+class TimedChallengesNotifier extends StateNotifier<List<TaskChallenge>> {
+  TimedChallengesNotifier() : super([]) {
+    _fetchLive();
+  }
+
+  Future<void> _fetchLive() async {
+    try {
+      final liveData = await apiService.fetchTimedChallenges();
+      state = liveData.map<TaskChallenge>((json) {
+        return TaskChallenge(
+          id: json['id'] ?? '',
+          title: json['title'] ?? 'Unknown',
+          description: json['description'] ?? '',
+          metric: json['metric'] ?? 'STEPS',
+          targetValue: (json['targetValue'] ?? 0).toInt(),
+          progress: (json['progress'] ?? 0).toInt(),
+          duration: json['duration'] ?? 'DAILY',
+          intensity: (json['intensity'] ?? 1).toInt(),
+          rewardCoins: (json['rewardCoins'] ?? 0).toInt(),
+          rewardOrbs: (json['rewardOrbs'] ?? 0).toInt(),
+          status: json['status'] ?? 'ACTIVE',
+          expiresAt: DateTime.tryParse(json['expiresAt'] ?? '') ?? DateTime.now(),
+        );
+      }).toList();
+    } catch (e) {
+      logApiError('TimedChallengesNotifier', e);
+    }
+  }
+
+  Future<void> claimReward(String challengeId) async {
+    await apiService.claimChallengeReward(challengeId);
+    await _fetchLive();
+  }
+
+  Future<void> refresh() => _fetchLive();
+}
+
+final timedChallengesProvider = StateNotifierProvider<TimedChallengesNotifier, List<TaskChallenge>>((ref) {
+  return TimedChallengesNotifier();
+});
+
+// =============================================================================
+// Inventory (user's owned items from store)
+// =============================================================================
+class InventoryItem {
+  final String id;
+  final String name;
+  final String description;
+  final String category; // 'badge', 'title', 'theme'
+  final String? imageUrl;
+  final String rarity; // 'common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'
+  final bool isEquipped;
+
+  const InventoryItem({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.category,
+    this.imageUrl,
+    this.rarity = 'common',
+    this.isEquipped = false,
+  });
+}
+
+class InventoryState {
+  final List<InventoryItem> items;
+  final bool isLoading;
+  final String? error;
+
+  const InventoryState({this.items = const [], this.isLoading = false, this.error});
+
+  InventoryState copyWith({List<InventoryItem>? items, bool? isLoading, String? error}) =>
+      InventoryState(
+        items: items ?? this.items,
+        isLoading: isLoading ?? this.isLoading,
+        error: error,
+      );
+}
+
+class InventoryNotifier extends StateNotifier<InventoryState> {
+  InventoryNotifier() : super(const InventoryState()) {
+    fetchInventory();
+  }
+
+  Future<void> fetchInventory() async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final userData = await apiService.getUserInventory();
+
+      final activeBadgeId = userData['activeBadge']?['_id']?.toString();
+      final activeTitleId = userData['activeTitle']?['_id']?.toString();
+      final inventoryList = userData['inventory'] as List? ?? [];
+
+      final items = inventoryList.map<InventoryItem>((item) {
+        final id = item['_id']?.toString() ?? '';
+        final category = item['category'] ?? '';
+        final isEquipped = (category == 'badge' && id == activeBadgeId) ||
+            (category == 'title' && id == activeTitleId);
+
+        return InventoryItem(
+          id: id,
+          name: item['name'] ?? 'Unknown',
+          description: item['description'] ?? '',
+          category: category,
+          imageUrl: item['imageUrl'],
+          rarity: item['rarity'] ?? 'common',
+          isEquipped: isEquipped,
+        );
+      }).toList();
+
+      state = state.copyWith(items: items, isLoading: false);
+    } catch (e) {
+      logApiError('InventoryNotifier', e);
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+
+  Future<bool> equipItem(String itemId) async {
+    try {
+      await apiService.equipItem(itemId);
+      await fetchInventory();
+      return true;
+    } catch (e) {
+      logApiError('equipItem', e);
+      rethrow;
+    }
+  }
+
+  Future<void> refresh() => fetchInventory();
+}
+
+final inventoryProvider = StateNotifierProvider<InventoryNotifier, InventoryState>((ref) {
+  return InventoryNotifier();
+});
+
+class StoreItem {
+  final String id;
+  final String name;
+  final String description;
+  final double price;
+  final String category;
+  final String? imageUrl;
+  final String rarity;
+  final bool isPurchasable;
+
+  const StoreItem({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.price,
+    required this.category,
+    this.imageUrl,
+    this.rarity = 'common',
+    this.isPurchasable = true,
+  });
+}
+
+class StoreState {
+  final List<StoreItem> items;
+  final bool isLoading;
+  final String? error;
+
+  const StoreState({this.items = const [], this.isLoading = false, this.error});
+
+  StoreState copyWith({List<StoreItem>? items, bool? isLoading, String? error}) =>
+      StoreState(
+        items: items ?? this.items,
+        isLoading: isLoading ?? this.isLoading,
+        error: error,
+      );
+}
+
+class StoreNotifier extends StateNotifier<StoreState> {
+  StoreNotifier() : super(const StoreState()) {
+    fetchStore();
+  }
+
+  Future<void> fetchStore() async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final itemsData = await apiService.getStoreItems();
+      final items = itemsData.map<StoreItem>((item) {
+        return StoreItem(
+          id: item['_id']?.toString() ?? '',
+          name: item['name'] ?? 'Unknown',
+          description: item['description'] ?? '',
+          price: (item['price'] ?? 0).toDouble(),
+          category: item['category'] ?? 'badge',
+          imageUrl: item['imageUrl'],
+          rarity: item['rarity'] ?? 'common',
+          isPurchasable: item['isPurchasable'] ?? true,
+        );
+      }).toList();
+      state = state.copyWith(items: items, isLoading: false);
+    } catch (e) {
+      logApiError('StoreNotifier', e);
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+
+  Future<void> buyItem(String itemId) async {
+    try {
+      await apiService.buyStoreItem(itemId);
+      await fetchStore();
+    } catch (e) {
+      logApiError('buyItem', e);
+      rethrow;
+    }
+  }
+
+  Future<void> refresh() => fetchStore();
+}
+
+final storeProvider = StateNotifierProvider<StoreNotifier, StoreState>((ref) {
+  return StoreNotifier();
+});
+
+// =============================================================================
+// Achievements
+// =============================================================================
+class AchievementData {
+  final String id;
+  final String title;
+  final String description;
+  final String metric;
+  final int targetValue;
+  final int rewardCoins;
+  final int rewardOrbs;
+  final bool isUnlocked;
+
+  const AchievementData({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.metric,
+    required this.targetValue,
+    required this.rewardCoins,
+    required this.rewardOrbs,
+    required this.isUnlocked,
+  });
+}
+
+class AchievementState {
+  final List<AchievementData> achievements;
+  final bool isLoading;
+
+  const AchievementState({this.achievements = const [], this.isLoading = false});
+
+  AchievementState copyWith({List<AchievementData>? achievements, bool? isLoading}) =>
+      AchievementState(
+        achievements: achievements ?? this.achievements,
+        isLoading: isLoading ?? this.isLoading,
+      );
+}
+
+class AchievementNotifier extends StateNotifier<AchievementState> {
+  AchievementNotifier() : super(const AchievementState()) {
+    fetchAchievements();
+  }
+
+  Future<void> fetchAchievements() async {
+    state = state.copyWith(isLoading: true);
+    try {
+      final data = await apiService.fetchAchievements();
+      final list = data['achievements'] as List? ?? [];
+      final achievements = list.map<AchievementData>((item) {
+        return AchievementData(
+          id: item['_id']?.toString() ?? '',
+          title: item['title'] ?? 'Unknown',
+          description: item['description'] ?? '',
+          metric: item['metric'] ?? 'STEPS',
+          targetValue: (item['targetValue'] ?? 0).toInt(),
+          rewardCoins: (item['rewardCoins'] ?? 0).toInt(),
+          rewardOrbs: (item['rewardOrbs'] ?? 0).toInt(),
+          isUnlocked: item['isUnlocked'] ?? false,
+        );
+      }).toList();
+      state = state.copyWith(achievements: achievements, isLoading: false);
+    } catch (e) {
+      logApiError('AchievementNotifier', e);
+      state = state.copyWith(isLoading: false);
+    }
+  }
+
+  Future<void> refresh() => fetchAchievements();
+}
+
+final achievementProvider = StateNotifierProvider<AchievementNotifier, AchievementState>((ref) {
+  return AchievementNotifier();
 });

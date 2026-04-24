@@ -30,6 +30,11 @@ class ApiService {
     await prefs.remove('username');
   }
 
+  String getMediaUrl(String path) {
+    if (path.startsWith('http')) return path;
+    return '${baseUrl.replaceFirst('/api/v1', '')}/$path';
+  }
+
   // ---------------------------------------------------------------------------
   // HTTP Helpers
   // ---------------------------------------------------------------------------
@@ -213,6 +218,21 @@ class ApiService {
     return res['data'] ?? [];
   }
 
+  Future<List<dynamic>> getStepsLeaderboard() async {
+    final res = await get('/wallet/leaderboard/steps');
+    return res['data'] ?? [];
+  }
+
+  Future<List<dynamic>> getBetsWonLeaderboard() async {
+    final res = await get('/wallet/leaderboard/bets-won');
+    return res['data'] ?? [];
+  }
+
+  Future<List<dynamic>> getPortfolioLeaderboard() async {
+    final res = await get('/wallet/leaderboard/portfolio');
+    return res['data'] ?? [];
+  }
+
   // ---------------------------------------------------------------------------
   // Steps (Fitness)
   // ---------------------------------------------------------------------------
@@ -227,6 +247,19 @@ class ApiService {
       'distanceKm': distanceKm,
       'kcal': kcal,
       'activeMin': activeMin
+    });
+    return res['data'];
+  }
+
+  Future<List<dynamic>> fetchActivityHistory() async {
+    final res = await get('/users/steps/history');
+    return res['data'] ?? [];
+  }
+
+  Future<Map<String, dynamic>> updateFitnessGoals({int? stepGoal, double? distanceGoal}) async {
+    final res = await post('/users/steps/goals', {
+      if (stepGoal != null) 'stepGoal': stepGoal,
+      if (distanceGoal != null) 'distanceGoal': distanceGoal,
     });
     return res['data'];
   }
@@ -346,6 +379,54 @@ class ApiService {
       }),
     );
     return _decodeResponse(response, 'PATCH /zones/$id')['data'];
+  }
+
+  // ---------------------------------------------------------------------------
+  // Store & Inventory
+  // ---------------------------------------------------------------------------
+  Future<List<dynamic>> getStoreItems() async {
+    final res = await get('/store/items');
+    return res['data'] ?? [];
+  }
+
+  Future<Map<String, dynamic>> getUserInventory() async {
+    final res = await get('/users/current-user');
+    return res['data'];
+  }
+
+  Future<Map<String, dynamic>> equipItem(String itemId) async {
+    final res = await post('/store/equip/$itemId', {});
+    return res['data'];
+  }
+
+  Future<Map<String, dynamic>> buyStoreItem(String itemId) async {
+    final res = await post('/store/buy/$itemId', {});
+    return res['data'];
+  }
+
+  // ---------------------------------------------------------------------------
+  // Timed Challenges
+  // ---------------------------------------------------------------------------
+  Future<List<dynamic>> fetchTimedChallenges() async {
+    final res = await get('/challenges/timed');
+    return res['data'] ?? [];
+  }
+
+  Future<Map<String, dynamic>> claimChallengeReward(String challengeId) async {
+    final res = await post('/challenges/claim', {'challengeId': challengeId});
+    return res['data'];
+  }
+
+  // ---------------------------------------------------------------------------
+  // Achievements
+  // ---------------------------------------------------------------------------
+  Future<Map<String, dynamic>> fetchAchievements() async {
+    final res = await get('/achievements');
+    return res['data'];
+  }
+
+  Future<void> acknowledgeAchievements() async {
+    await post('/achievements/acknowledge', {});
   }
 }
 

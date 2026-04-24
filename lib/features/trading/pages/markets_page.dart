@@ -33,7 +33,7 @@ class _MarketsPageState extends ConsumerState<MarketsPage> {
         slivers: [
           SliverAppBar(
             toolbarHeight: 60,
-            expandedHeight: 60,
+            expandedHeight: 40,
             pinned: true,
             backgroundColor: Colors.transparent,
             elevation: 0,
@@ -43,7 +43,7 @@ class _MarketsPageState extends ConsumerState<MarketsPage> {
                 child: Container(
                   color: const Color(0xFF101010).withOpacity(0.85),
                   alignment: Alignment.centerLeft,
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+                  padding: const EdgeInsets.fromLTRB(24, 5, 24, 0),
                   child: Row(
                     children: [
                       GestureDetector(
@@ -54,8 +54,8 @@ class _MarketsPageState extends ConsumerState<MarketsPage> {
                       Text(
                         "EXPLORE",
                         style: GoogleFonts.lexend(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 22,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 20,
                           letterSpacing: 1.5,
                           color: Colors.white,
                         ),
@@ -76,8 +76,7 @@ class _MarketsPageState extends ConsumerState<MarketsPage> {
                 children: [
                    _buildChip("All"),
                    _buildChip("Top Gainers"),
-                   _buildChip("Top Losers"),
-                   _buildChip("Indexes"),
+                   _buildChip("Top Losers")
                 ],
               ),
             ),
@@ -347,8 +346,8 @@ class _TradeSheetState extends ConsumerState<TradeSheet> {
   final _limitPriceController = TextEditingController();
   
   // Graph controls
-  int _selectedInterval = 1; // 0: 1H, 1: 1D, 2: 1M, 3: 1Y
-  final _intervals = ["1H", "1D", "1W", "1M"];
+  int _selectedInterval = 0; // 0: 1D, 1: 1W, 2: 1M
+  final _intervals = ["1D", "1W", "1M"];
 
   Future<void> _placeOrder() async {
     final qty = int.tryParse(_qtyController.text.trim());
@@ -414,139 +413,126 @@ class _TradeSheetState extends ConsumerState<TradeSheet> {
   Widget build(BuildContext context) {
     final Color actionColor = _isBuy ? const Color(0xFF00D09C) : const Color(0xFFEB5B3C);
 
-    return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 24, right: 24, top: 32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: Text(widget.asset, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 24, color: Colors.white))),
-              const SizedBox(width: 16),
-              Text(widget.price, style: GoogleFonts.robotoMono(color: widget.accentColor, fontWeight: FontWeight.bold, fontSize: 20)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          
-          // Chart Controls (Time + Type)
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
+    return Container(
+      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.9),
+      child: SingleChildScrollView(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 32, left: 24, right: 24, top: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Interval Chips
-                Row(
-                  children: List.generate(_intervals.length, (index) {
-                    final isSel = _selectedInterval == index;
-                    return GestureDetector(
-                      onTap: () => setState(() => _selectedInterval = index),
-                      child: Container(
-                        margin: const EdgeInsets.only(right: 8),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: isSel ? Colors.white : Colors.transparent,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: isSel ? Colors.white : Colors.white24),
-                        ),
-                        child: Text(_intervals[index], style: TextStyle(color: isSel ? Colors.black : Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
-                      ),
-                    );
-                  }),
-                ),
+                Expanded(child: Text(widget.asset, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 24, color: Colors.white))),
+                const SizedBox(width: 16),
+                Text(widget.price, style: GoogleFonts.robotoMono(color: widget.accentColor, fontWeight: FontWeight.bold, fontSize: 20)),
               ],
             ),
-          ),
-          const SizedBox(height: 16),
-
-          // Dynamic Chart View
-          SizedBox(
-            height: 220,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: _buildSelectedChart(),
-            ),
-          ),
-          const SizedBox(height: 24),
-          
-          // BUY / SELL Toggle (Groww uses distinct tabbed approach)
-          Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => setState(() => _isBuy = true),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      decoration: BoxDecoration(
-                        color: _isBuy ? const Color(0xFF00D09C) : Colors.transparent,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text("BUY", style: TextStyle(fontWeight: FontWeight.bold, color: _isBuy ? Colors.black : Colors.white)),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => setState(() => _isBuy = false),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      decoration: BoxDecoration(
-                        color: !_isBuy ? const Color(0xFFEB5B3C) : Colors.transparent,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text("SELL", style: TextStyle(fontWeight: FontWeight.bold, color: !_isBuy ? Colors.white : Colors.white)),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 32),
-
-          // Order Type Selector
-          Row(
-            children: ["MARKET", "LIMIT"].map((type) => GestureDetector(
-              onTap: () => setState(() => _orderType = type),
-              child: Container(
-                margin: const EdgeInsets.only(right: 12),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  border: Border(bottom: BorderSide(color: _orderType == type ? actionColor : Colors.transparent, width: 2)),
-                ),
-                child: Text(type, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _orderType == type ? actionColor : Colors.white54)),
-              ),
-            )).toList(),
-          ),
-          const SizedBox(height: 24),
-
-          TextField(
-            controller: _qtyController,
-            keyboardType: TextInputType.number,
-            style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
-            decoration: InputDecoration(
-              labelText: "Qty",
-              labelStyle: const TextStyle(color: Colors.white38, fontSize: 14),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.white10)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: actionColor)),
-              fillColor: const Color(0xFF1E1E1E),
-              filled: true,
-            ),
-          ),
-          if (_orderType == "LIMIT") ...[
             const SizedBox(height: 16),
+            
+            // Chart Controls (Time + Type)
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  // Interval Chips
+                  Row(
+                    children: List.generate(_intervals.length, (index) {
+                      final isSel = _selectedInterval == index;
+                      return GestureDetector(
+                        onTap: () => setState(() => _selectedInterval = index),
+                        child: Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: isSel ? Colors.white : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: isSel ? Colors.white : Colors.white24),
+                          ),
+                          child: Text(_intervals[index], style: TextStyle(color: isSel ? Colors.black : Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+                        ),
+                      );
+                    }),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+  
+            // Dynamic Chart View
+            SizedBox(
+              height: 220,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: _buildSelectedChart(),
+              ),
+            ),
+            const SizedBox(height: 24),
+            
+            // BUY / SELL Toggle (Groww uses distinct tabbed approach)
+            Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _isBuy = true),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        decoration: BoxDecoration(
+                          color: _isBuy ? const Color(0xFF00D09C) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text("BUY", style: TextStyle(fontWeight: FontWeight.bold, color: _isBuy ? Colors.black : Colors.white)),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _isBuy = false),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        decoration: BoxDecoration(
+                          color: !_isBuy ? const Color(0xFFEB5B3C) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text("SELL", style: TextStyle(fontWeight: FontWeight.bold, color: !_isBuy ? Colors.white : Colors.white)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+  
+            // Order Type Selector
+            Row(
+              children: ["MARKET", "LIMIT"].map((type) => GestureDetector(
+                onTap: () => setState(() => _orderType = type),
+                child: Container(
+                  margin: const EdgeInsets.only(right: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    border: Border(bottom: BorderSide(color: _orderType == type ? actionColor : Colors.transparent, width: 2)),
+                  ),
+                  child: Text(type, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _orderType == type ? actionColor : Colors.white54)),
+                ),
+              )).toList(),
+            ),
+            const SizedBox(height: 24),
+  
             TextField(
-              controller: _limitPriceController,
+              controller: _qtyController,
               keyboardType: TextInputType.number,
               style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
               decoration: InputDecoration(
-                labelText: "Limit Price",
+                labelText: "Qty",
                 labelStyle: const TextStyle(color: Colors.white38, fontSize: 14),
                 enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.white10)),
                 focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: actionColor)),
@@ -554,28 +540,44 @@ class _TradeSheetState extends ConsumerState<TradeSheet> {
                 filled: true,
               ),
             ),
-          ],
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: actionColor,
-                foregroundColor: _isBuy ? Colors.black : Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            if (_orderType == "LIMIT") ...[
+              const SizedBox(height: 16),
+              TextField(
+                controller: _limitPriceController,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
+                decoration: InputDecoration(
+                  labelText: "Limit Price",
+                  labelStyle: const TextStyle(color: Colors.white38, fontSize: 14),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.white10)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: actionColor)),
+                  fillColor: const Color(0xFF1E1E1E),
+                  filled: true,
+                ),
               ),
-              onPressed: _isPlacingOrder ? null : _placeOrder,
-              child: _isPlacingOrder
-                  ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
-                  : Text(
-                      _isBuy ? "BUY" : "SELL",
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: 1),
-                    ),
+            ],
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: actionColor,
+                  foregroundColor: _isBuy ? Colors.black : Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: _isPlacingOrder ? null : _placeOrder,
+                child: _isPlacingOrder
+                    ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                    : Text(
+                        _isBuy ? "BUY" : "SELL",
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: 1),
+                      ),
+              ),
             ),
-          ),
-          const SizedBox(height: 48),
-        ],
+            const SizedBox(height: 16),
+          ],
+        ),
       ),
     );
   }
@@ -598,7 +600,7 @@ class _TradeSheetState extends ConsumerState<TradeSheet> {
 class _RealChartPainter extends CustomPainter {
   final List<double> history;
   final Color accentColor;
-  final int intervalSize; // 0=1H, 1=1D, 2=1W, 3=1M
+  final int intervalSize; // 0=1D, 1=1W, 2=1M
 
   _RealChartPainter({required this.history, required this.accentColor, required this.intervalSize});
 
@@ -606,12 +608,11 @@ class _RealChartPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (history.isEmpty) return;
 
-    // Filter points based on interval logic. (Assuming 1 object per hour logged from backend)
+    // Filter points based on interval logic.
     int takePoints = history.length;
-    if (intervalSize == 0) takePoints = 1; // 1H: just today's price or latest? Technically backend logs max 72 points every hour. 
-    else if (intervalSize == 1) takePoints = 24; // 1D
-    else if (intervalSize == 2) takePoints = 168; // 1W
-    else if (intervalSize == 3) takePoints = 720; // 1M
+    if (intervalSize == 0) takePoints = 24; // 1D
+    else if (intervalSize == 1) takePoints = 168; // 1W
+    else if (intervalSize == 2) takePoints = 720; // 1M
     
     // We only have max history, so take up to what we actually have
     final data = history.reversed.take(takePoints).toList().reversed.toList();

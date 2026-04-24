@@ -42,6 +42,14 @@ const stepsSchema = new Schema(
             default: "",
             trim: true,
         },
+        stepGoal: {
+            type: Number,
+            default: 10000,
+        },
+        distanceGoal: {
+            type: Number,
+            default: 8.0,
+        },
     },
     {
         timestamps: true,

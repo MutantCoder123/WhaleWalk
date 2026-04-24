@@ -4,7 +4,8 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { Bet } from "../models/bet.model.js";
 import { Enroll } from "../models/enroll.model.js";
 import { Wallet } from "../models/wallet.model.js";
-
+import { UserStats } from "../models/userStats.model.js";
+import { checkAndUnlockAchievements } from "../utils/achievement.utils.js";
 
 const getallBet = asyncHandler(async (req, res) => {
     const bets = await Bet.find()
@@ -14,7 +15,6 @@ const getallBet = asyncHandler(async (req, res) => {
             .status(200)
             .json(new ApiResponse(200, [], "No bets found"))
     }
-
     const filteredBets = bets.map(bet => {
         const betObj = bet.toObject()
         if (bet.status === "open") {
@@ -27,13 +27,6 @@ const getallBet = asyncHandler(async (req, res) => {
         .status(200)
         .json(new ApiResponse(200, filteredBets, "Bets fetched successfully"))
 })
-
-    // getuser info and bet inifo , response , no of coins from req
-    // if any feild is missing return error
-    // check bet is open or closed  and already enrolled or not 
-    // save it into enroll collection and deduct coin from wallet (if dont have enough coin send error )
-    // update total enroll and total pool
-    // return a success message
 
 const enrolluser = asyncHandler(async (req, res) => {
     const { betId, response, campusCoins } = req.body
@@ -86,9 +79,19 @@ const enrolluser = asyncHandler(async (req, res) => {
 
     await Bet.findOneAndUpdate({ betId }, poolUpdate)
 
+    // increment betsPlaced
+    await UserStats.findOneAndUpdate(
+        { username },
+        { $inc: { betsPlaced: 1 } },
+        { upsert: true }
+    )
+    
+    // check achievements
+    const newlyUnlocked = await checkAndUnlockAchievements(username);
+
     return res
         .status(200)
-        .json(new ApiResponse(200, enroll, "Enrolled successfully"))
+        .json(new ApiResponse(200, { enroll, newlyUnlocked }, "Enrolled successfully"))
 })
 
 
@@ -142,15 +145,14 @@ const createBet = asyncHandler(async (req, res) => {
     }
 
     // convert IST to UTC
-    // IST = UTC + 5:30, so UTC = IST - 5:30
-    const istDate = new Date(resultTime)  // JS automatically handles timezone if passed correctly
+    const istDate = new Date(resultTime)
     
     const bet = await Bet.create({
         betId,
         question,
         description,
         result,
-        resultTime: istDate,   // stored as UTC in MongoDB automatically
+        resultTime: istDate,   
         status: "open",
         totalEnrolled: 0,
         totalPool: 0,
@@ -195,16 +197,22 @@ const resolveBet = asyncHandler(async (req, res) => {
     })
 
     if (winningPool > 0) {
-        // distribute the total pool based on proportion of contribution to winning pool
         for (const enroll of winningEnrollments) {
             const userBetAmount = enroll.campusCoins
-            // proportional payout rounded to 2 decimals if needed, but since it's just coins we can round or keep precise
             const payout = Math.floor((userBetAmount / winningPool) * bet.totalPool)
 
             await Wallet.findOneAndUpdate(
                 { username: enroll.username },
                 { $inc: { campusCoins: payout } }
             )
+
+            // increment betsWon
+            await UserStats.findOneAndUpdate(
+                { username: enroll.username },
+                { $inc: { betsWon: 1 } },
+                { upsert: true }
+            )
+            await checkAndUnlockAchievements(enroll.username);
         }
     }
 
@@ -215,7 +223,7 @@ const resolveBet = asyncHandler(async (req, res) => {
             status: "closed", 
             result: uppercaseResult 
         },
-        { returnDocument: 'after' }
+        { new: true }
     )
 
     return res

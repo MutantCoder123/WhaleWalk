@@ -34,6 +34,7 @@ import stockRouter from './routes/stock.routes.js'
 import storeRouter from './routes/store.routes.js'
 import achievementRouter from './routes/achievement.routes.js'
 import zoneRouter from './routes/zone.routes.js'
+import challengesRouter from './routes/challenges.routes.js'
 
 //routes declaration
 app.use("/api/v1/users", userRouter)
@@ -43,6 +44,7 @@ app.use("/api/v1/stocks", stockRouter)
 app.use("/api/v1/store", storeRouter)
 app.use("/api/v1/achievements", achievementRouter)
 app.use("/api/v1/zones", zoneRouter)
+app.use("/api/v1/challenges", challengesRouter)
 // http://localhost:4000/api/v1/users/register
 
 app.use((req, res) => {
