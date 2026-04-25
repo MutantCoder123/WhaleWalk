@@ -7,6 +7,7 @@ import { Steps } from "../models/step.model.js";
 import { UserStats } from "../models/userStats.model.js";
 import { Wallet } from "../models/wallet.model.js";
 import { User } from "../models/user.model.js";
+import { Transaction } from "../models/transaction.model.js";
 
 const getTimedChallenges = asyncHandler(async (req, res) => {
     const userId = req.user._id;
@@ -115,6 +116,14 @@ const claimChallengeReward = asyncHandler(async (req, res) => {
             }
         }
     );
+    
+    // Log transaction
+    await Transaction.create({
+        userId,
+        title: `Challenge Reward: ${challenge.title}`,
+        amount: challenge.rewardCoins,
+        isPositive: true
+    });
 
     // If there's an item reward, add it to inventory
     if (challenge.rewardItemId) {

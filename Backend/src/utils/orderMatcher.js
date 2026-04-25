@@ -46,7 +46,7 @@ const matchOrdersForStock = async (stockId) => {
                     { username: buyOrder.username },
                     { $inc: { campusCoins: buyerRefund, lockedCoins: -buyerLockDeduction } }
                 );
-                
+
                 if (buyerRefund > 0) {
                     const buyerUser = await User.findOne({ username: buyOrder.username });
                     if (buyerUser) {
@@ -88,7 +88,7 @@ const matchOrdersForStock = async (stockId) => {
 
                     await UserStocks.findOneAndUpdate(
                         { username: buyOrder.username, stockId },
-                        { 
+                        {
                             $inc: { quantity: matchedQty },
                             $set: { avgPrice: newAvgPrice }
                         },
