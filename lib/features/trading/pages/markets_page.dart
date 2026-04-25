@@ -54,8 +54,8 @@ class _MarketsPageState extends ConsumerState<MarketsPage> {
                       Text(
                         "EXPLORE",
                         style: GoogleFonts.lexend(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 21,
                           letterSpacing: 1.5,
                           color: Colors.white,
                         ),
@@ -71,7 +71,7 @@ class _MarketsPageState extends ConsumerState<MarketsPage> {
           SliverToBoxAdapter(
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
               child: Row(
                 children: [
                    _buildChip("All"),

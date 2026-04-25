@@ -7,6 +7,7 @@ import { UserStocks } from "../models/userstocks.model.js";
 import { Wallet } from "../models/wallet.model.js";
 import { Transaction } from "../models/transaction.model.js";
 import { User } from "../models/user.model.js";
+import { SystemSettings } from "../models/systemSettings.model.js";
 import { matchOrdersForStock } from "../utils/orderMatcher.js";
 
 // get all stocks with current price
@@ -97,6 +98,13 @@ const placeOrder = asyncHandler(async (req, res) => {
         throw new ApiError(400, "type must be 'buy' or 'sell'")
     }
 
+    // Check system market status
+    const systemSettings = await SystemSettings.findOne();
+    const isMarketOpen = !systemSettings || systemSettings.marketStatus === 'OPEN';
+    if (!isMarketOpen) {
+        throw new ApiError(400, `Market is currently ${systemSettings.marketStatus}. Transactions are paused.`);
+    }
+
     // check stock exists
     const stock = await Stock.findOne({ stockId })
     if (!stock) {
@@ -109,10 +117,11 @@ const placeOrder = asyncHandler(async (req, res) => {
     }
 
     if (type === "sell") {
-        // check user has enough shares to sell
+        // check user has enough AVAILABLE (unlocked) shares to sell
         const userStock = await UserStocks.findOne({ username, stockId })
-        if (!userStock || userStock.quantity < quantity) {
-            throw new ApiError(400, "Insufficient shares to sell")
+        const availableQty = (userStock?.quantity || 0) - (userStock?.lockedQuantity || 0);
+        if (!userStock || availableQty < quantity) {
+            throw new ApiError(400, `Insufficient shares to sell. Available: ${availableQty}`)
         }
     }
 
@@ -285,7 +294,7 @@ const createStock = asyncHandler(async (req, res) => {
         name,
         price,
         previousPrice: previousPrice || price,
-        history: history || [price],
+        history: history || [{ price }],
         sharesct: 100   // default 100
     })
 

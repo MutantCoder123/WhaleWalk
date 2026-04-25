@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'pages/markets_page.dart';
 import 'pages/portfolio_page.dart';
-import 'pages/staking_page.dart';
+import 'pages/bet_page.dart';
 import 'pages/activity_page.dart';
 import 'pages/challenges_page.dart';
 
@@ -23,7 +23,7 @@ class _TradingShellState extends State<TradingShell> {
       const MarketsPage(),
       const PortfolioPage(),
       const ChallengesPage(),
-      const StakingPage(),
+      const BetPage(),
       const ActivityPage(),
     ];
 
@@ -66,7 +66,7 @@ class _TradingShellState extends State<TradingShell> {
                 BottomNavigationBarItem(icon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.explore_rounded)), label: "EXPLORE"),
                 BottomNavigationBarItem(icon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.pie_chart_rounded)), label: "PORTFOLIO"),
                 BottomNavigationBarItem(icon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.group_work_rounded)), label: "CHALLENGES"),
-                BottomNavigationBarItem(icon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.hub_rounded)), label: "POOLS"),
+                BottomNavigationBarItem(icon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.hub_rounded)), label: "BETS"),
                 BottomNavigationBarItem(icon: Padding(padding: EdgeInsets.only(bottom: 4), child: Icon(Icons.receipt_long_rounded)), label: "ORDERS"),
               ],
             ),

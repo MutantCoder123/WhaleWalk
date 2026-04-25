@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/state/app_state.dart';
 import '../../core/services/api_service.dart';
+import '../../core/utils/rarity_utils.dart';
 
 class InventoryView extends ConsumerStatefulWidget {
   const InventoryView({super.key});
@@ -331,33 +332,20 @@ class _InventoryViewState extends ConsumerState<InventoryView>
     );
   }
 
-  Color _getRarityColor(String rarity) {
-    switch (rarity.toLowerCase()) {
-      case 'common': return Colors.grey.shade400;
-      case 'uncommon': return Colors.greenAccent;
-      case 'rare': return Colors.blueAccent;
-      case 'epic': return Colors.purpleAccent;
-      case 'legendary': return Colors.orangeAccent;
-      case 'mythic': return Colors.pinkAccent;
-      default: return Colors.amber;
-    }
-  }
+  // Using shared getRarityColor() from rarity_utils.dart
 
   Widget _buildBadgeCard(InventoryItem item) {
-    final rarityColor = _getRarityColor(item.rarity);
+    final rarityColor = getRarityColor(item.rarity);
     final icon = _categoryIcon(item.category);
 
     return GestureDetector(
       onTap: () => _showItemDetail(item),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
-        decoration: BoxDecoration(
-          color: const Color(0xFF16171B),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: item.isEquipped ? rarityColor.withOpacity(0.6) : Colors.white.withOpacity(0.05),
-            width: item.isEquipped ? 1.5 : 1,
-          ),
+        decoration: rarityGlowDecoration(
+          rarity: item.rarity,
+          borderRadius: 16,
+          isEquipped: item.isEquipped,
         ),
         child: Center(
           child: Stack(
@@ -366,9 +354,9 @@ class _InventoryViewState extends ConsumerState<InventoryView>
               Container(
                 width: 44,
                 height: 44,
-                decoration: BoxDecoration(
-                  color: rarityColor.withOpacity(0.05),
-                  shape: BoxShape.circle,
+                decoration: rarityCircleGlow(
+                  rarity: item.rarity,
+                  isEquipped: item.isEquipped,
                 ),
                 child: item.imageUrl != null && item.imageUrl!.isNotEmpty
                     ? ClipRRect(
@@ -393,6 +381,9 @@ class _InventoryViewState extends ConsumerState<InventoryView>
                       color: rarityColor,
                       shape: BoxShape.circle,
                       border: Border.all(color: const Color(0xFF16171B), width: 1.5),
+                      boxShadow: [
+                        BoxShadow(color: rarityColor.withOpacity(0.6), blurRadius: 6),
+                      ],
                     ),
                   ),
                 ),
@@ -404,20 +395,17 @@ class _InventoryViewState extends ConsumerState<InventoryView>
   }
 
   Widget _buildTitleCard(InventoryItem item) {
-    final rarityColor = _getRarityColor(item.rarity);
+    final rarityColor = getRarityColor(item.rarity);
 
     return GestureDetector(
       onTap: () => _showItemDetail(item),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF16171B),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: item.isEquipped ? rarityColor.withOpacity(0.6) : Colors.white.withOpacity(0.05),
-            width: item.isEquipped ? 1.5 : 1,
-          ),
+        decoration: rarityGlowDecoration(
+          rarity: item.rarity,
+          borderRadius: 16,
+          isEquipped: item.isEquipped,
         ),
         child: Row(
           children: [
@@ -432,6 +420,9 @@ class _InventoryViewState extends ConsumerState<InventoryView>
                       fontSize: 16,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 2,
+                      shadows: [
+                        Shadow(color: rarityColor.withOpacity(0.4), blurRadius: 8),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -449,6 +440,9 @@ class _InventoryViewState extends ConsumerState<InventoryView>
                   color: rarityColor.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: rarityColor.withOpacity(0.3)),
+                  boxShadow: [
+                    BoxShadow(color: rarityColor.withOpacity(0.3), blurRadius: 8),
+                  ],
                 ),
                 child: Text(
                   "EQUIPPED",
@@ -467,7 +461,7 @@ class _InventoryViewState extends ConsumerState<InventoryView>
   }
 
   void _showItemDetail(InventoryItem item) {
-    final color = _categoryColor(item.category);
+    final color = getRarityColor(item.rarity);  // Use rarity color instead of category color
     final icon = _categoryIcon(item.category);
 
     showModalBottomSheet(

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/state/app_state.dart';
 import '../../core/services/api_service.dart';
+import '../../core/utils/rarity_utils.dart';
 import 'dart:ui';
 
 class StoreView extends ConsumerStatefulWidget {
@@ -13,17 +14,7 @@ class StoreView extends ConsumerStatefulWidget {
 }
 
 class _StoreViewState extends ConsumerState<StoreView> {
-  Color _getRarityColor(String rarity) {
-    switch (rarity.toLowerCase()) {
-      case 'common': return Colors.grey.shade400;
-      case 'uncommon': return Colors.greenAccent;
-      case 'rare': return Colors.blueAccent;
-      case 'epic': return Colors.purpleAccent;
-      case 'legendary': return Colors.orangeAccent;
-      case 'mythic': return Colors.pinkAccent;
-      default: return Colors.amber;
-    }
-  }
+  // Using shared getRarityColor() from rarity_utils.dart
 
   IconData _categoryIcon(String category) {
     switch (category.toLowerCase()) {
@@ -188,22 +179,15 @@ class _StoreViewState extends ConsumerState<StoreView> {
   }
 
   Widget _buildBadgeCard(StoreItem item) {
-    final rarityColor = _getRarityColor(item.rarity);
+    final rarityColor = getRarityColor(item.rarity);
     final icon = _categoryIcon(item.category);
 
     return GestureDetector(
       onTap: () => _showPurchaseDialog(item),
       child: Container(
-        decoration: BoxDecoration(
-          color: Color.alphaBlend(
-            rarityColor.withOpacity(0.04),
-            const Color(0xFF1E1E1E),
-          ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.08)),
-          boxShadow: [
-            BoxShadow(color: rarityColor.withOpacity(0.08), blurRadius: 12, spreadRadius: -4),
-          ],
+        decoration: rarityGlowDecoration(
+          rarity: item.rarity,
+          borderRadius: 20,
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -212,13 +196,7 @@ class _StoreViewState extends ConsumerState<StoreView> {
             Container(
               width: 48,
               height: 48,
-              decoration: BoxDecoration(
-                color: rarityColor.withOpacity(0.08),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(color: rarityColor.withOpacity(0.15), blurRadius: 16, spreadRadius: -2),
-                ],
-              ),
+              decoration: rarityCircleGlow(rarity: item.rarity),
               child: item.imageUrl != null && item.imageUrl!.isNotEmpty
                   ? ClipRRect(
                       borderRadius: BorderRadius.circular(24),
@@ -356,7 +334,7 @@ class _StoreViewState extends ConsumerState<StoreView> {
   }
 
   void _showPurchaseDialog(StoreItem item) {
-    final rarityColor = _getRarityColor(item.rarity);
+    final rarityColor = getRarityColor(item.rarity);
     final icon = _categoryIcon(item.category);
     bool isBuying = false;
 

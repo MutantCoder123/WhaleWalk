@@ -453,6 +453,19 @@ class ApiService {
   Future<void> acknowledgeAchievements() async {
     await post('/achievements/acknowledge', {});
   }
+
+  // ---------------------------------------------------------------------------
+  // System Settings (Market Status)
+  // ---------------------------------------------------------------------------
+  Future<Map<String, dynamic>> fetchSystemSettings() async {
+    final res = await get('/system/settings');
+    return res['data'];
+  }
+
+  Future<Map<String, dynamic>> updateMarketStatus(String status) async {
+    final res = await post('/system/settings/market-status', {'status': status});
+    return res['data'];
+  }
 }
 
 // Singleton — used everywhere in the app

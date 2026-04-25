@@ -191,19 +191,6 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> with SingleTickerPr
                 Navigator.push(context, MaterialPageRoute(builder: (context) => const AdminView()));
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.security_rounded, color: Colors.redAccent),
-              title: const Text("Anti Cheat Status", style: TextStyle(color: Colors.redAccent)),
-              onTap: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("Anti-Cheat Module: VALIDATION ACTIVE", style: TextStyle(fontWeight: FontWeight.bold)),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              },
-            ),
             const Divider(color: Colors.white10),
             ListTile(
               leading: const Icon(Icons.info_outline_rounded, color: Colors.white54),

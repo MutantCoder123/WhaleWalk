@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/state/app_state.dart';
 import '../../core/services/api_service.dart';
+import '../../core/utils/rarity_utils.dart';
 import 'inventory_view.dart';
 import 'leaderboard_page.dart';
 import '../store/store_view.dart';
@@ -35,17 +36,7 @@ class _ProfileViewState extends ConsumerState<ProfileView> with SingleTickerProv
     super.dispose();
   }
 
-  Color _getRarityColor(String rarity) {
-    switch (rarity.toLowerCase()) {
-      case 'common': return Colors.grey.shade400;
-      case 'uncommon': return Colors.greenAccent;
-      case 'rare': return Colors.blueAccent;
-      case 'epic': return Colors.purpleAccent;
-      case 'legendary': return Colors.orangeAccent;
-      case 'mythic': return Colors.pinkAccent;
-      default: return Colors.amber;
-    }
-  }
+  // Using shared getRarityColor() from rarity_utils.dart
 
   @override
   Widget build(BuildContext context) {
@@ -102,10 +93,10 @@ class _ProfileViewState extends ConsumerState<ProfileView> with SingleTickerProv
                           decoration: BoxDecoration(
                             shape: BoxShape.circle, 
                             border: Border.all(
-                              color: equippedBadge.isNotEmpty ? _getRarityColor(equippedBadge.first.rarity) : Colors.amber, 
+                              color: equippedBadge.isNotEmpty ? getRarityColor(equippedBadge.first.rarity) : Colors.amber, 
                               width: 3
                             ),
-                            boxShadow: [BoxShadow(color: equippedBadge.isNotEmpty ? _getRarityColor(equippedBadge.first.rarity).withOpacity(0.3) : Colors.black.withOpacity(0.5), blurRadius: 20)]
+                            boxShadow: [BoxShadow(color: equippedBadge.isNotEmpty ? getRarityColor(equippedBadge.first.rarity).withOpacity(0.3) : Colors.black.withOpacity(0.5), blurRadius: 20)]
                           ),
                           child: const CircleAvatar(
                             radius: 54,
@@ -119,9 +110,9 @@ class _ProfileViewState extends ConsumerState<ProfileView> with SingleTickerProv
                     Text(
                       equippedTitle.isNotEmpty ? equippedTitle.first.name.toUpperCase() : "GOLD MASTER",
                       style: TextStyle(
-                        color: equippedTitle.isNotEmpty ? _getRarityColor(equippedTitle.first.rarity) : Colors.amber,
+                        color: equippedTitle.isNotEmpty ? getRarityColor(equippedTitle.first.rarity) : Colors.amber,
                         fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 4,
-                        shadows: [Shadow(color: (equippedTitle.isNotEmpty ? _getRarityColor(equippedTitle.first.rarity) : Colors.amber).withOpacity(0.5), blurRadius: 10)],
+                        shadows: [Shadow(color: (equippedTitle.isNotEmpty ? getRarityColor(equippedTitle.first.rarity) : Colors.amber).withOpacity(0.5), blurRadius: 10)],
                       ),
                     ),
                     if (equippedBadge.isNotEmpty) ...[
@@ -129,9 +120,9 @@ class _ProfileViewState extends ConsumerState<ProfileView> with SingleTickerProv
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                         decoration: BoxDecoration(
-                          color: _getRarityColor(equippedBadge.first.rarity).withOpacity(0.1), 
+                          color: getRarityColor(equippedBadge.first.rarity).withOpacity(0.1), 
                           borderRadius: BorderRadius.circular(12), 
-                          border: Border.all(color: _getRarityColor(equippedBadge.first.rarity).withOpacity(0.2))
+                          border: Border.all(color: getRarityColor(equippedBadge.first.rarity).withOpacity(0.2))
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min, 
@@ -140,11 +131,11 @@ class _ProfileViewState extends ConsumerState<ProfileView> with SingleTickerProv
                                 ? Image.network(
                                     ApiService().getMediaUrl(equippedBadge.first.imageUrl!),
                                     width: 14, height: 14, fit: BoxFit.contain,
-                                    errorBuilder: (_, __, ___) => Icon(Icons.military_tech_rounded, color: _getRarityColor(equippedBadge.first.rarity), size: 14),
+                                    errorBuilder: (_, __, ___) => Icon(Icons.military_tech_rounded, color: getRarityColor(equippedBadge.first.rarity), size: 14),
                                   )
-                                : Icon(Icons.military_tech_rounded, color: _getRarityColor(equippedBadge.first.rarity), size: 14),
+                                : Icon(Icons.military_tech_rounded, color: getRarityColor(equippedBadge.first.rarity), size: 14),
                             const SizedBox(width: 6), 
-                            Text(equippedBadge.first.name, style: GoogleFonts.outfit(color: _getRarityColor(equippedBadge.first.rarity), fontSize: 11, fontWeight: FontWeight.bold))
+                            Text(equippedBadge.first.name, style: GoogleFonts.outfit(color: getRarityColor(equippedBadge.first.rarity), fontSize: 11, fontWeight: FontWeight.bold))
                           ]
                         ),
                       ),

@@ -64,7 +64,7 @@ class _ChallengesPageState extends ConsumerState<ChallengesPage> with SingleTick
 
   Widget _buildHeader(BuildContext context) {
     return Container(
-      height: 120,
+      height: 60,
       decoration: BoxDecoration(
         color: const Color(0xFF101010).withOpacity(0.8),
       ),
@@ -82,7 +82,7 @@ class _ChallengesPageState extends ConsumerState<ChallengesPage> with SingleTick
                 "CHALLENGES",
                 style: GoogleFonts.lexend(
                   fontWeight: FontWeight.w700,
-                  fontSize: 22,
+                  fontSize: 21,
                   letterSpacing: 1.5,
                   color: Colors.white,
                 ),

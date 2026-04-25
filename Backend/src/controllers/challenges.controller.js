@@ -6,6 +6,7 @@ import { UserChallengeProgress } from "../models/userChallengeProgress.model.js"
 import { Steps } from "../models/step.model.js";
 import { UserStats } from "../models/userStats.model.js";
 import { Wallet } from "../models/wallet.model.js";
+import { User } from "../models/user.model.js";
 
 const getTimedChallenges = asyncHandler(async (req, res) => {
     const userId = req.user._id;
@@ -24,7 +25,7 @@ const getTimedChallenges = asyncHandler(async (req, res) => {
             let startValue = 0;
             if (challenge.metric === 'STEPS') {
                 const userSteps = await Steps.findOne({ username });
-                startValue = userSteps?.totalStepsWalked || 0;
+                startValue = userSteps?.stepsCount || 0;
             } else if (challenge.metric === 'BETS_WON') {
                 const userStats = await UserStats.findOne({ username });
                 startValue = userStats?.betsWon || 0;
@@ -52,7 +53,7 @@ const getTimedChallenges = asyncHandler(async (req, res) => {
             let currentTotal = 0;
             if (challenge.metric === 'STEPS') {
                 const userSteps = await Steps.findOne({ username });
-                currentTotal = userSteps?.totalStepsWalked || 0;
+                currentTotal = userSteps?.stepsCount || 0;
             } else if (challenge.metric === 'BETS_WON') {
                 const userStats = await UserStats.findOne({ username });
                 currentTotal = userStats?.betsWon || 0;
@@ -114,6 +115,14 @@ const claimChallengeReward = asyncHandler(async (req, res) => {
             }
         }
     );
+
+    // If there's an item reward, add it to inventory
+    if (challenge.rewardItemId) {
+        const user = await User.findById(userId);
+        if (user) {
+            await user.addToInventory(challenge.rewardItemId);
+        }
+    }
 
     progress.status = 'CLAIMED';
     await progress.save();

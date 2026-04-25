@@ -12,7 +12,7 @@ router.route("/leaderboard/bets-won").get(getBetsWonLeaderboard)
 router.route("/leaderboard/portfolio").get(getPortfolioLeaderboard)
 router.route("/convert-steps").post(convertSteps)
 router.route("/convert-orbs").post(convertOrbs)
-router.route("/history").get(getTransactions)
+router.route("/transactions").get(getTransactions)
 router.route("/farm-orbs").post(farmOrbs)
 
 export default router

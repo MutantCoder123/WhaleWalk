@@ -19,7 +19,7 @@ class ActivityPage extends ConsumerWidget {
         body: CustomScrollView(
           slivers: [
             SliverAppBar(
-              toolbarHeight: 60,
+              toolbarHeight: 40,
               expandedHeight: 110,
               pinned: true,
               backgroundColor: Colors.transparent,
@@ -43,7 +43,7 @@ class ActivityPage extends ConsumerWidget {
                           "ORDERS",
                           style: GoogleFonts.lexend(
                             fontWeight: FontWeight.w700,
-                            fontSize: 22,
+                            fontSize: 21,
                             letterSpacing: 1.5,
                             color: Colors.white,
                           ),

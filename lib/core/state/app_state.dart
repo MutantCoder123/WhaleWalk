@@ -673,6 +673,8 @@ class Challenge {
   final double yesPool;
   final double noPool;
 
+  final String status;
+ 
   Challenge(
     this.betId,
     this.title,
@@ -684,6 +686,7 @@ class Challenge {
     this.accentColor,
     this.yesPool,
     this.noPool,
+    this.status,
   );
 }
 
@@ -714,6 +717,7 @@ class ChallengesNotifier extends StateNotifier<List<Challenge>> {
           json['accentColor'] ?? "orange",
           (json['yesPool'] ?? 0).toDouble(),
           (json['noPool'] ?? 0).toDouble(),
+          json['status'] ?? 'open',
         );
       }).toList();
     } catch (e) {

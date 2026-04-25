@@ -1,12 +1,17 @@
 import cron from "node-cron"
 import { StockTrade } from "../models/stocktrade.model.js"
 import { Stock } from "../models/stock.model.js"
+import { SystemSettings } from "../models/systemSettings.model.js"
 import { matchOrdersForStock } from "../utils/orderMatcher.js"
 
 const stockTradeCron = () => {
     // 1. Live Price Simulation (Runs every 5 seconds)
     setInterval(async () => {
         try {
+            // Skip price fluctuation if market is closed
+            const settings = await SystemSettings.findOne();
+            if (settings && settings.marketStatus === 'CLOSED') return;
+
             const allStocks = await Stock.find({});
             for (const stock of allStocks) {
                 // Random fluctuation between -0.25% and +0.25%

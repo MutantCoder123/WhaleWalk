@@ -23,6 +23,8 @@ class _AdminViewState extends ConsumerState<AdminView> {
   List<dynamic> _bets = [];
   List<dynamic> _zones = [];
   List<dynamic> _tasks = [];
+  List<dynamic> _items = [];
+  String _marketStatus = 'OPEN';
 
   List<dynamic> get _openChallenges =>
       _bets.where((bet) => bet['status'] == 'open').toList();
@@ -45,13 +47,23 @@ class _AdminViewState extends ConsumerState<AdminView> {
         apiService.fetchBets(),
         apiService.fetchZones(),
         apiService.fetchTimedChallenges(),
+        apiService.getStoreItems(),
       ]);
 
+      // Fetch system settings separately so a failure doesn't break the admin console
+      String fetchedMarketStatus = 'OPEN';
+      try {
+        final settingsData = await apiService.fetchSystemSettings();
+        fetchedMarketStatus = settingsData['marketStatus'] ?? 'OPEN';
+      } catch (_) {}
+
       setState(() {
-        _stocks = results[0];
-        _bets = results[1];
-        _zones = results[2];
-        _tasks = results[3];
+        _stocks = results[0] as List<dynamic>;
+        _bets = results[1] as List<dynamic>;
+        _zones = results[2] as List<dynamic>;
+        _tasks = results[3] as List<dynamic>;
+        _items = results[4] as List<dynamic>;
+        _marketStatus = fetchedMarketStatus;
       });
 
     } catch (e) {
@@ -104,7 +116,7 @@ class _AdminViewState extends ConsumerState<AdminView> {
   Future<void> _openCreateTaskDialog() async {
     final created = await showDialog<bool>(
       context: context,
-      builder: (context) => const _CreateTaskDialog(),
+      builder: (context) => _CreateTaskDialog(items: _items),
     );
 
     if (created == true) {
@@ -211,6 +223,22 @@ class _AdminViewState extends ConsumerState<AdminView> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Stock deleted')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showError(context, e);
+    }
+  }
+
+  Future<void> _updateMarketStatus(String newStatus) async {
+    try {
+      await apiService.updateMarketStatus(newStatus);
+      setState(() {
+        _marketStatus = newStatus;
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Market status set to $newStatus')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -332,12 +360,84 @@ class _AdminViewState extends ConsumerState<AdminView> {
           ],
         ),
         const SizedBox(height: 36),
+        _buildMarketControlSection(),
+        const SizedBox(height: 36),
         const Text("CAMPUS ZONES MANAGEMENT", style: TextStyle(color: Colors.white54, fontWeight: FontWeight.bold, letterSpacing: 1.5, fontSize: 13)),
         const SizedBox(height: 16),
         _buildAdminMapControl(),
         const SizedBox(height: 16),
         _buildZonesSection(),
       ],
+    );
+  }
+
+  Widget _buildMarketControlSection() {
+    final isOpen = _marketStatus == 'OPEN';
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: isOpen ? Colors.greenAccent.withOpacity(0.3) : Colors.redAccent.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text("MARKET STATUS", style: TextStyle(color: Colors.white54, fontWeight: FontWeight.bold, letterSpacing: 1.5, fontSize: 13)),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        isOpen ? Icons.radio_button_checked : Icons.radio_button_off,
+                        color: isOpen ? Colors.greenAccent : Colors.redAccent,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        isOpen ? "MARKET OPEN" : "MARKET CLOSED",
+                        style: GoogleFonts.outfit(
+                          color: isOpen ? Colors.greenAccent : Colors.redAccent,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              ElevatedButton.icon(
+                onPressed: () => _updateMarketStatus(isOpen ? 'CLOSED' : 'OPEN'),
+                icon: Icon(isOpen ? Icons.lock : Icons.lock_open, size: 18),
+                label: Text(isOpen ? "CLOSE MARKET" : "OPEN MARKET"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isOpen ? Colors.redAccent : Colors.greenAccent,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            isOpen
+                ? "Market is live. Prices are fluctuating and users can place orders."
+                : "Market is frozen. Prices are locked, transactions blocked, and pending orders have been rolled back.",
+            style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "Auto: Opens 9:15 AM, Closes 3:30 PM (Mon-Sat)",
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1107,8 +1207,8 @@ class _SetResultDialogState extends State<_SetResultDialog> {
               decoration: _inputDecoration('Result', Icons.check_rounded),
               dropdownColor: const Color(0xFF1E1E1E),
               items: const [
-                DropdownMenuItem(value: 'YES', child: Text('YES')),
-                DropdownMenuItem(value: 'NO', child: Text('NO')),
+                DropdownMenuItem(value: 'YES', child: Text('YES', style: TextStyle(color: Colors.white, fontSize: 14))),
+                DropdownMenuItem(value: 'NO', child: Text('NO', style: TextStyle(color: Colors.white, fontSize: 14))),
               ],
               onChanged: (value) {
                 if (value != null) setState(() => _result = value);
@@ -1425,12 +1525,12 @@ class _AdminBetsPage extends StatelessWidget {
                 icon: isClosed ? Icons.lock_clock_rounded : Icons.pending_actions_rounded,
                 accent: isClosed ? Colors.grey : Colors.purpleAccent,
                 title: bet['question'] ?? 'No question',
-                subtitle: 'ID: ${bet['_id']}',
+                subtitle: 'ID: ${bet['betId']}',
                 trailing: '${bet['totalPool'] ?? 0} CMX',
                 meta: isClosed ? 'STATUS: CLOSED' : 'STATUS: ACTIVE',
                 action: isClosed ? null : IconButton(
                   icon: const Icon(Icons.fact_check_rounded, color: Colors.white70),
-                  onPressed: () => onSetResult(bet['_id']),
+                  onPressed: () => onSetResult(bet['betId']),
                 ),
               );
             }),
@@ -1513,7 +1613,8 @@ class _AdminTasksPage extends StatelessWidget {
 }
 
 class _CreateTaskDialog extends StatefulWidget {
-  const _CreateTaskDialog();
+  final List<dynamic> items;
+  const _CreateTaskDialog({required this.items});
 
   @override
   State<_CreateTaskDialog> createState() => _CreateTaskDialogState();
@@ -1529,6 +1630,7 @@ class _CreateTaskDialogState extends State<_CreateTaskDialog> {
 
   String _metric = 'STEPS';
   String _duration = 'DAILY';
+  String? _selectedItemId;
   bool _isSubmitting = false;
 
   @override
@@ -1554,6 +1656,7 @@ class _CreateTaskDialogState extends State<_CreateTaskDialog> {
         duration: _duration,
         rewardCoins: int.tryParse(_coinsController.text.trim()) ?? 0,
         rewardOrbs: int.tryParse(_orbsController.text.trim()) ?? 0,
+        rewardItemId: _selectedItemId,
       );
 
       if (!mounted) return;
@@ -1601,9 +1704,9 @@ class _CreateTaskDialogState extends State<_CreateTaskDialog> {
                     decoration: _inputDecoration('Metric', Icons.bar_chart_rounded),
                     dropdownColor: const Color(0xFF1E1E1E),
                     items: const [
-                      DropdownMenuItem(value: 'STEPS', child: Text('STEPS')),
-                      DropdownMenuItem(value: 'BETS_WON', child: Text('BETS WON')),
-                      DropdownMenuItem(value: 'COINS_EARNED', child: Text('COINS EARNED')),
+                      DropdownMenuItem(value: 'STEPS', child: Text('STEPS', style: TextStyle(color: Colors.white))),
+                      DropdownMenuItem(value: 'BETS_WON', child: Text('BETS WON', style: TextStyle(color: Colors.white))),
+                      DropdownMenuItem(value: 'COINS_EARNED', child: Text('COINS EARNED', style: TextStyle(color: Colors.white))),
                     ],
                     onChanged: (value) {
                       if (value != null) setState(() => _metric = value);
@@ -1617,8 +1720,8 @@ class _CreateTaskDialogState extends State<_CreateTaskDialog> {
                     decoration: _inputDecoration('Duration', Icons.timer_rounded),
                     dropdownColor: const Color(0xFF1E1E1E),
                     items: const [
-                      DropdownMenuItem(value: 'DAILY', child: Text('DAILY')),
-                      DropdownMenuItem(value: 'WEEKLY', child: Text('WEEKLY')),
+                      DropdownMenuItem(value: 'DAILY', child: Text('DAILY', style: TextStyle(color: Colors.white))),
+                      DropdownMenuItem(value: 'WEEKLY', child: Text('WEEKLY', style: TextStyle(color: Colors.white))),
                     ],
                     onChanged: (value) {
                       if (value != null) setState(() => _duration = value);
@@ -1656,6 +1759,22 @@ class _CreateTaskDialogState extends State<_CreateTaskDialog> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String?>(
+              value: _selectedItemId,
+              decoration: _inputDecoration('Reward Badge (Optional)', Icons.military_tech_rounded),
+              dropdownColor: const Color(0xFF1E1E1E),
+              items: [
+                const DropdownMenuItem(value: null, child: Text('No Badge Reward', style: TextStyle(color: Colors.white))),
+                ...widget.items.map((item) => DropdownMenuItem(
+                      value: item['_id'].toString(),
+                      child: Text(item['name'] ?? 'Item', style: TextStyle(color: Colors.white)),
+                    )),
+              ],
+              onChanged: (value) {
+                setState(() => _selectedItemId = value);
+              },
             ),
           ],
         ),

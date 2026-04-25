@@ -187,8 +187,9 @@ const resolveBet = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Bet is already closed")
     }
 
-    // Determine winning pool
     const winningPool = uppercaseResult === 'YES' ? bet.yesPool : bet.noPool
+    console.log(`[ResolveBet] BetId: ${betId}, Result: ${uppercaseResult}`);
+    console.log(`[ResolveBet] WinningPool: ${winningPool}, TotalPool: ${bet.totalPool}`);
     
     // Find winning enrollments
     const winningEnrollments = await Enroll.find({ 
@@ -196,24 +197,42 @@ const resolveBet = asyncHandler(async (req, res) => {
         response: { $regex: new RegExp(`^${uppercaseResult}$`, 'i') } 
     })
 
+    console.log(`[ResolveBet] Found ${winningEnrollments.length} winning enrollments`);
+
     if (winningPool > 0) {
         for (const enroll of winningEnrollments) {
-            const userBetAmount = enroll.campusCoins
-            const payout = Math.floor((userBetAmount / winningPool) * bet.totalPool)
+            try {
+                const userBetAmount = enroll.campusCoins
+                const payout = Math.floor((userBetAmount / winningPool) * bet.totalPool)
+                console.log(`[ResolveBet] Paying out ${payout} to ${enroll.username} (staked ${userBetAmount})`);
 
-            await Wallet.findOneAndUpdate(
-                { username: enroll.username },
-                { $inc: { campusCoins: payout } }
-            )
+                const walletUpdate = await Wallet.findOneAndUpdate(
+                    { username: enroll.username },
+                    { $inc: { campusCoins: payout } },
+                    { new: true }
+                )
+                
+                if (!walletUpdate) {
+                    console.error(`[ResolveBet] FAILED to find wallet for ${enroll.username}`);
+                } else {
+                    console.log(`[ResolveBet] Wallet updated for ${enroll.username}, new balance: ${walletUpdate.campusCoins}`);
+                }
 
-            // increment betsWon
-            await UserStats.findOneAndUpdate(
-                { username: enroll.username },
-                { $inc: { betsWon: 1 } },
-                { upsert: true }
-            )
-            await checkAndUnlockAchievements(enroll.username);
+                // increment betsWon
+                await UserStats.findOneAndUpdate(
+                    { username: enroll.username },
+                    { $inc: { betsWon: 1 } },
+                    { upsert: true }
+                )
+                await checkAndUnlockAchievements(enroll.username);
+            } catch (err) {
+                console.error(`[ResolveBet] Error processing payout for ${enroll.username}:`, err);
+            }
         }
+    } else if (winningEnrollments.length > 0) {
+        console.warn(`[ResolveBet] Found winners but winningPool is 0! Data inconsistency check needed.`);
+    } else {
+        console.log(`[ResolveBet] No winners found for result: ${uppercaseResult}`);
     }
 
     // Update bet status

@@ -60,7 +60,7 @@ class PortfolioPage extends ConsumerWidget {
                         "PORTFOLIO",
                         style: GoogleFonts.lexend(
                           fontWeight: FontWeight.w700,
-                          fontSize: 22,
+                          fontSize: 21,
                           letterSpacing: 1.5,
                           color: Colors.white,
                         ),
@@ -88,8 +88,6 @@ class PortfolioPage extends ConsumerWidget {
 
                 const SizedBox(height: 32),
 
-                // Claim Pending Steps (Campus Exchange Specific)
-                _buildClaimCard(context, wallet.availableSteps),
 
                 const SizedBox(height: 32),
 

@@ -103,16 +103,17 @@ const matchOrdersForStock = async (stockId) => {
                     })
                 }
 
-                // 4. deduct locked shares from seller
+                // 4. deduct locked shares from seller (restore quantity is already done at placement)
                 await UserStocks.findOneAndUpdate(
                     { username: sellOrder.username, stockId },
                     { $inc: { lockedQuantity: -matchedQty } }
                 )
 
-                // 5. update stock price
+                // 5. update stock price to the execution price
+                const currentStock = await Stock.findOne({ stockId });
                 await Stock.findOneAndUpdate(
                     { stockId },
-                    { $set: { price: executionPrice, previousPrice: stock.price } }
+                    { $set: { price: executionPrice, previousPrice: currentStock?.price || executionPrice } }
                 )
 
                 // 6. deduct matched quantity from orders locally
@@ -121,14 +122,14 @@ const matchOrdersForStock = async (stockId) => {
 
                 // 7. Update DB statuses for orders
                 if (buyOrder.quantity === 0) {
-                    await StockTrade.findByIdAndUpdate(buyOrder._id, { status: "executed", quantity: 0 });
+                    await StockTrade.findByIdAndUpdate(buyOrder._id, { status: "executed" });
                     buyIndex++;
                 } else {
                     await StockTrade.findByIdAndUpdate(buyOrder._id, { quantity: buyOrder.quantity });
                 }
 
                 if (sellOrder.quantity === 0) {
-                    await StockTrade.findByIdAndUpdate(sellOrder._id, { status: "executed", quantity: 0 });
+                    await StockTrade.findByIdAndUpdate(sellOrder._id, { status: "executed" });
                     sellIndex++;
                 } else {
                     await StockTrade.findByIdAndUpdate(sellOrder._id, { quantity: sellOrder.quantity });

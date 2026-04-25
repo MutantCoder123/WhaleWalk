@@ -6,14 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/state/app_state.dart';
 import '../../../core/services/api_service.dart';
 
-class StakingPage extends ConsumerStatefulWidget {
-  const StakingPage({super.key});
+class BetPage extends ConsumerStatefulWidget {
+  const BetPage({super.key});
 
   @override
-  ConsumerState<StakingPage> createState() => _StakingPageState();
+  ConsumerState<BetPage> createState() => _BetPageState();
 }
 
-class _StakingPageState extends ConsumerState<StakingPage> {
+class _BetPageState extends ConsumerState<BetPage> {
   List<Map<String, dynamic>> _myBets = [];
   bool _loadingMyBets = true;
 
@@ -76,10 +76,10 @@ class _StakingPageState extends ConsumerState<StakingPage> {
                       ),
                       const SizedBox(width: 16),
                       Text(
-                        "POOLS",
+                        "BETS",
                         style: GoogleFonts.lexend(
                           fontWeight: FontWeight.w700,
-                          fontSize: 22,
+                          fontSize: 21,
                           letterSpacing: 1.5,
                           color: Colors.white,
                         ),
@@ -173,9 +173,11 @@ class _PoolCard extends StatelessWidget {
     final progressYes = total == 0 ? 0.5 : bet.yesPool / total;
     final progressNo  = total == 0 ? 0.5 : bet.noPool / total;
     final accent = _accentColor;
+    // A bet is closed if EITHER the timer expired OR the admin resolved it
+    final isClosed = bet.timeLeft == "Closed" || bet.status != 'open';
 
     return GestureDetector(
-      onTap: () {
+      onTap: isClosed ? null : () {
         if (isEnrolled) {
           _showEnrolledInfoDialog(context);
         } else {
@@ -183,25 +185,25 @@ class _PoolCard extends StatelessWidget {
         }
       },
       child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          border: Border.all(color: Colors.white.withOpacity(0.1)),
+          borderRadius: BorderRadius.circular(24),
+        ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(24),
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
             child: Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Color.alphaBlend(accent.withOpacity(0.03), const Color(0xFF1E1E1E).withOpacity(0.8)),
-                gradient: RadialGradient(
-                  center: Alignment.bottomRight,
-                  radius: 2.5,
-                  colors: [accent.withOpacity(0.30), Colors.transparent],
-                  stops: const [0.0, 1.0],
-                ),
-                border: Border(
-                  top: BorderSide(color: Colors.white.withOpacity(0.1)),
-                  left: BorderSide(color: Colors.white.withOpacity(0.1)),
-                  right: BorderSide(color: Colors.white.withOpacity(0.02)),
-                  bottom: BorderSide(color: Colors.white.withOpacity(0.02)),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    accent.withOpacity(0.1),
+                    Colors.transparent,
+                  ],
                 ),
               ),
               child: Column(
@@ -337,7 +339,7 @@ class _PoolCard extends StatelessWidget {
                         elevation: 0,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
-                      onPressed: bet.timeLeft == "Closed"
+                      onPressed: isClosed
                           ? null
                           : () {
                               if (isEnrolled) {
@@ -349,7 +351,7 @@ class _PoolCard extends StatelessWidget {
                       child: Text(
                         isEnrolled
                             ? "VIEW MY STAKE"
-                            : (bet.timeLeft == "Closed" ? "CLOSED" : "ENTER POOL"),
+                            : (isClosed ? "CLOSED" : "ENTER POOL"),
                         style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, letterSpacing: 1.5),
                       ),
                     ),
