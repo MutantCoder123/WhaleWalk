@@ -5,6 +5,10 @@ import { Stock } from "../models/stock.model.js";
 import { StockTrade } from "../models/stocktrade.model.js";
 import { UserStocks } from "../models/userstocks.model.js";
 import { Wallet } from "../models/wallet.model.js";
+import { Transaction } from "../models/transaction.model.js";
+import { User } from "../models/user.model.js";
+import { SystemSettings } from "../models/systemSettings.model.js";
+import { matchOrdersForStock } from "../utils/orderMatcher.js";
 
 // get all stocks with current price
 const getAllStocks = asyncHandler(async (req, res) => {
@@ -14,45 +18,70 @@ const getAllStocks = asyncHandler(async (req, res) => {
         throw new ApiError(404, "No stocks found")
     }
 
+    const stocksWithPercentages = stocks.map(stock => {
+        const stockObj = stock.toObject();
+        let percentageChange = 0;
+        if (stock.previousPrice && stock.previousPrice > 0) {
+            percentageChange = ((stock.price - stock.previousPrice) / stock.previousPrice) * 100;
+        }
+        return {
+            ...stockObj,
+            percentageChange: parseFloat(percentageChange.toFixed(2))
+        };
+    });
+
     return res
         .status(200)
-        .json(new ApiResponse(200, stocks, "Stocks fetched successfully"))
+        .json(new ApiResponse(200, stocksWithPercentages, "Stocks fetched successfully"))
 })
 
 // get user's portfolio
 const getUserStocks = asyncHandler(async (req, res) => {
     const username = req.user.username
 
-    // get all executed trades
-    const executedTrades = await StockTrade.find({
-        username,
-        status: "executed"
-    })
+    const userStocks = await UserStocks.find({ username, quantity: { $gt: 0 } })
 
-    if (!executedTrades || executedTrades.length === 0) {
-        throw new ApiError(404, "No executed trades found")
+    if (!userStocks || userStocks.length === 0) {
+        return res
+            .status(200)
+            .json(new ApiResponse(200, [], "No stocks in portfolio"))
     }
 
-    // calculate shares owned per stock
-    const stockMap = {}
-
-    for (const trade of executedTrades) {
-        if (!stockMap[trade.stockId]) {
-            stockMap[trade.stockId] = 0
+    const portfolio = await Promise.all(userStocks.map(async (uStock) => {
+        const stock = await Stock.findOne({ stockId: uStock.stockId });
+        let percentageGain = 0;
+        let avgPriceToUse = uStock.avgPrice;
+        
+        // Fallback for older records missing avgPrice
+        if (!avgPriceToUse) {
+            const lastTrade = await StockTrade.findOne({ 
+                username, 
+                stockId: uStock.stockId, 
+                type: 'buy', 
+                status: 'executed' 
+            }).sort({ createdAt: -1 });
+            
+            if (lastTrade) {
+                avgPriceToUse = lastTrade.limitPrice;
+                // Opportunistically fix the record in background without waiting
+                UserStocks.updateOne({ _id: uStock._id }, { $set: { avgPrice: avgPriceToUse } }).exec();
+            }
+        }
+        
+        if (stock && avgPriceToUse && avgPriceToUse > 0) {
+            percentageGain = ((stock.price - avgPriceToUse) / avgPriceToUse) * 100;
         }
 
-        if (trade.type === "buy") {
-            stockMap[trade.stockId] += trade.quantity   // add shares
-        } else {
-            stockMap[trade.stockId] -= trade.quantity   // remove shares
-        }
-    }
-
-    // format response
-    const portfolio = Object.entries(stockMap).map(([stockId, quantity]) => ({
-        stockId,
-        quantity
-    }))
+        return {
+            stockId: uStock.stockId,
+            name: stock?.name ?? uStock.stockId,
+            quantity: uStock.quantity,
+            avgPrice: avgPriceToUse || stock?.price || 0,
+            currentPrice: stock ? stock.price : (avgPriceToUse || 0),
+            previousPrice: stock?.previousPrice ?? stock?.price ?? 0,
+            percentageGain: parseFloat(percentageGain.toFixed(2))
+        };
+    }));
 
     return res
         .status(200)
@@ -73,6 +102,13 @@ const placeOrder = asyncHandler(async (req, res) => {
         throw new ApiError(400, "type must be 'buy' or 'sell'")
     }
 
+    // Check system market status
+    const systemSettings = await SystemSettings.findOne();
+    const isMarketOpen = !systemSettings || systemSettings.marketStatus === 'OPEN';
+    if (!isMarketOpen) {
+        throw new ApiError(400, `Market is currently ${systemSettings.marketStatus}. Transactions are paused.`);
+    }
+
     // check stock exists
     const stock = await Stock.findOne({ stockId })
     if (!stock) {
@@ -85,10 +121,11 @@ const placeOrder = asyncHandler(async (req, res) => {
     }
 
     if (type === "sell") {
-        // check user has enough shares to sell
+        // check user has enough AVAILABLE (unlocked) shares to sell
         const userStock = await UserStocks.findOne({ username, stockId })
-        if (!userStock || userStock.quantity < quantity) {
-            throw new ApiError(400, "Insufficient shares to sell")
+        const availableQty = (userStock?.quantity || 0) - (userStock?.lockedQuantity || 0);
+        if (!userStock || availableQty < quantity) {
+            throw new ApiError(400, `Insufficient shares to sell. Available: ${availableQty}`)
         }
     }
 
@@ -115,17 +152,58 @@ const placeOrder = asyncHandler(async (req, res) => {
 
     // If executed (market order): deduct coins for buy, will handle sell coin credit later
     if (orderStatus === 'executed' && type === 'buy') {
+        // Price Impact: Buying pushes the price UP
+        // impact = (qty / total_shares) -> e.g. buying 1% of float = 1% price increase
+        const impact = (quantity / (stock.sharesct || 10000));
+        const newPrice = stock.price * (1 + impact);
+        
+        await Stock.findByIdAndUpdate(stock._id, { 
+            $set: { price: newPrice, previousPrice: stock.price } 
+        });
+
         await Wallet.findOneAndUpdate(
             { username },
             { $inc: { campusCoins: -(quantity * limitPrice) } }
         )
         // Update UserStocks
-        await UserStocks.findOneAndUpdate(
-            { username, stockId },
-            { $inc: { quantity } },
-            { upsert: true, new: true }
-        )
+        const existingStock = await UserStocks.findOne({ username, stockId });
+        
+        if (existingStock) {
+            const oldTotalCost = existingStock.quantity * existingStock.avgPrice;
+            const newTotalCost = quantity * limitPrice;
+            const newAvgPrice = (oldTotalCost + newTotalCost) / (existingStock.quantity + quantity);
+
+            await UserStocks.findOneAndUpdate(
+                { username, stockId },
+                { 
+                    $inc: { quantity },
+                    $set: { avgPrice: newAvgPrice }
+                },
+                { returnDocument: 'after' }
+            );
+        } else {
+            await UserStocks.create({
+                username,
+                stockId,
+                quantity,
+                avgPrice: limitPrice
+            });
+        }
+        await Transaction.create({
+            userId: req.user._id,
+            title: `Market Buy ${stock.name}`,
+            amount: (quantity * limitPrice),
+            isPositive: false
+        });
     } else if (orderStatus === 'executed' && type === 'sell') {
+        // Price Impact: Selling pushes the price DOWN
+        const impact = (quantity / (stock.sharesct || 10000));
+        const newPrice = Math.max(0.01, stock.price * (1 - impact));
+
+        await Stock.findByIdAndUpdate(stock._id, { 
+            $set: { price: newPrice, previousPrice: stock.price } 
+        });
+
         await Wallet.findOneAndUpdate(
             { username },
             { $inc: { campusCoins: quantity * limitPrice } }
@@ -134,6 +212,12 @@ const placeOrder = asyncHandler(async (req, res) => {
             { username, stockId },
             { $inc: { quantity: -quantity } }
         )
+        await Transaction.create({
+            userId: req.user._id,
+            title: `Market Sell ${stock.name}`,
+            amount: (quantity * limitPrice),
+            isPositive: true
+        });
     } else if (orderStatus === 'pending') {
         // Lock collateral for pending limit orders
         if (type === 'buy') {
@@ -141,12 +225,30 @@ const placeOrder = asyncHandler(async (req, res) => {
                 { username },
                 { $inc: { campusCoins: -(quantity * limitPrice), lockedCoins: (quantity * limitPrice) } }
             )
+            await Transaction.create({
+                userId: req.user._id,
+                title: `Limit Escrow Lock ${stock.name}`,
+                amount: (quantity * limitPrice),
+                isPositive: false
+            });
         } else if (type === 'sell') {
             await UserStocks.findOneAndUpdate(
                 { username, stockId },
                 { $inc: { quantity: -quantity, lockedQuantity: quantity } }
             )
         }
+    }
+
+    // Try to match the newly placed order
+    if (orderStatus === 'pending') {
+        await matchOrdersForStock(stockId);
+        
+        // Fetch the updated order state after matching has occurred
+        const updatedOrder = await StockTrade.findById(order._id);
+        
+        return res
+            .status(200)
+            .json(new ApiResponse(200, updatedOrder, `${type.toUpperCase()} order processed`))
     }
 
     return res
@@ -196,7 +298,7 @@ const createStock = asyncHandler(async (req, res) => {
         name,
         price,
         previousPrice: previousPrice || price,
-        history: history || [price],
+        history: history || [{ price }],
         sharesct: 100   // default 100
     })
 
@@ -205,4 +307,49 @@ const createStock = asyncHandler(async (req, res) => {
         .json(new ApiResponse(201, stock, "Stock created successfully"))
 })
 
-export { getAllStocks, getUserStocks, placeOrder, getMyOrders, getCompletedOrders , createStock}
+const deleteStock = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    
+    const stock = await Stock.findById(id);
+    if (!stock) {
+        throw new ApiError(404, "Stock not found");
+    }
+
+    const { stockId, price, name } = stock;
+
+    // 1. Find all user holdings for this stock
+    const userHoldings = await UserStocks.find({ stockId, quantity: { $gt: 0 } });
+
+    // 2. Refund each user and log transactions
+    for (const holding of userHoldings) {
+        const refundAmount = holding.quantity * price;
+        
+        // Update Wallet
+        await Wallet.findOneAndUpdate(
+            { username: holding.username },
+            { $inc: { campusCoins: refundAmount } }
+        );
+
+        // Find user to get ID for Transaction
+        const user = await User.findOne({ username: holding.username });
+        if (user) {
+            await Transaction.create({
+                userId: user._id,
+                title: `Refund: ${name} deleted`,
+                amount: refundAmount,
+                isPositive: true
+            });
+        }
+    }
+
+    // 3. Cleanup related records
+    await UserStocks.deleteMany({ stockId });
+    await StockTrade.deleteMany({ stockId, status: "pending" }); // Cancel pending orders
+
+    // 4. Finally delete the stock
+    await Stock.findByIdAndDelete(id);
+
+    return res.status(200).json(new ApiResponse(200, stock, `Stock ${name} deleted and users refunded successfully`));
+});
+
+export { getAllStocks, getUserStocks, placeOrder, getMyOrders, getCompletedOrders , createStock, deleteStock}

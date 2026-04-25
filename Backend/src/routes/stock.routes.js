@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getAllStocks, getUserStocks, placeOrder, getMyOrders, getCompletedOrders, createStock } from "../controllers/stock.controller.js"
+import { getAllStocks, getUserStocks, placeOrder, getMyOrders, getCompletedOrders, createStock, deleteStock } from "../controllers/stock.controller.js"
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 
 const router = Router()
@@ -10,4 +10,6 @@ router.route("/order").post(verifyJWT, placeOrder)
 router.route("/orders").get(verifyJWT, getMyOrders)
 router.route("/completed-orders").get(verifyJWT, getCompletedOrders)
 router.route("/createstock").post(createStock)
+router.route("/:id").delete(verifyJWT, deleteStock)
+
 export default router

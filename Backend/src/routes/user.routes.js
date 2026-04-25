@@ -11,7 +11,7 @@ import {
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 
 import { getWalletInfo } from "../controllers/wallet.controller.js"
-import { getStepInfo,updateSteps } from "../controllers/steps.controller.js"
+import { getStepInfo, updateSteps, getActivityHistory, updateGoals } from "../controllers/steps.controller.js"
 
 
 const router = Router()
@@ -28,6 +28,8 @@ router.route("/current-user").get(verifyJWT, getCurrentUser)
 router.route("/update-account").patch(verifyJWT, updateAccountDetails)
 router.route("/wallet").get(verifyJWT,getWalletInfo)
 router.route("/steps").get(verifyJWT,getStepInfo)
-router.route("/steps/update").post(verifyJWT, updateSteps)  // stepscount will replace with given value.
+router.route("/steps/update").post(verifyJWT, updateSteps)
+router.route("/steps/history").get(verifyJWT, getActivityHistory)
+router.route("/steps/goals").post(verifyJWT, updateGoals)
 
 export default router
