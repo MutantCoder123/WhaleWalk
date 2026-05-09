@@ -17,6 +17,12 @@ class ProfileView extends ConsumerStatefulWidget {
 
 class _ProfileViewState extends ConsumerState<ProfileView> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final apiService = ApiService();
+  String _username = '';
+  String _fullName = '';
+  List<dynamic> _transactions = [];
+  List<dynamic> _myBets = [];
+  bool _loadingActivity = true;
 
   @override
   void initState() {
@@ -24,10 +30,33 @@ class _ProfileViewState extends ConsumerState<ProfileView> with SingleTickerProv
     _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(() {
       if (_tabController.index == 1 && !_tabController.indexIsChanging) {
-        // Acknowledge achievements when user views the tab
         ref.read(achievementProvider.notifier).acknowledge();
       }
     });
+    _fetchProfileData();
+  }
+
+  Future<void> _fetchProfileData() async {
+    try {
+      final results = await Future.wait([
+        apiService.getCurrentUser(),
+        apiService.getTransactions(),
+        apiService.getMyBets(),
+      ]);
+      if (mounted) {
+        setState(() {
+          final user = results[0] as Map<String, dynamic>;
+          _username = user['username'] ?? '';
+          _fullName = user['fullName'] ?? '';
+          _transactions = (results[1] as List<dynamic>).take(15).toList();
+          _myBets = (results[2] as List<dynamic>);
+          _loadingActivity = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('[Profile] Error loading data: $e');
+      if (mounted) setState(() => _loadingActivity = false);
+    }
   }
 
   @override
@@ -48,6 +77,7 @@ class _ProfileViewState extends ConsumerState<ProfileView> with SingleTickerProv
 
     final equippedBadge = inventoryState.items.where((i) => i.category == 'badge' && i.isEquipped).toList();
     final equippedTitle = inventoryState.items.where((i) => i.category == 'title' && i.isEquipped).toList();
+    final displayName = _fullName.isNotEmpty ? _fullName.toUpperCase() : (_username.isNotEmpty ? _username.toUpperCase() : 'TRADER');
 
     return Theme(
       data: ThemeData.dark().copyWith(
@@ -83,7 +113,7 @@ class _ProfileViewState extends ConsumerState<ProfileView> with SingleTickerProv
                             child: Opacity(
                               opacity: 0.8,
                               child: Image.network(
-                                ApiService().getMediaUrl(equippedBadge.first.imageUrl!),
+                                apiService.getMediaUrl(equippedBadge.first.imageUrl!),
                                 fit: BoxFit.contain,
                               ),
                             ),
@@ -98,17 +128,23 @@ class _ProfileViewState extends ConsumerState<ProfileView> with SingleTickerProv
                             ),
                             boxShadow: [BoxShadow(color: equippedBadge.isNotEmpty ? getRarityColor(equippedBadge.first.rarity).withOpacity(0.3) : Colors.black.withOpacity(0.5), blurRadius: 20)]
                           ),
-                          child: const CircleAvatar(
+                          child: CircleAvatar(
                             radius: 54,
-                            backgroundColor: Color(0xFF16171B),
-                            child: CircleAvatar(radius: 51, backgroundImage: NetworkImage('https://api.dicebear.com/7.x/avataaars/png?seed=Felix'), backgroundColor: Colors.transparent),
+                            backgroundColor: const Color(0xFF16171B),
+                            child: CircleAvatar(
+                              radius: 51,
+                              backgroundImage: NetworkImage(
+                                'https://api.dicebear.com/7.x/avataaars/png?seed=${_username.isNotEmpty ? _username : "user"}'
+                              ),
+                              backgroundColor: Colors.transparent,
+                            ),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      equippedTitle.isNotEmpty ? equippedTitle.first.name.toUpperCase() : "GOLD MASTER",
+                      equippedTitle.isNotEmpty ? equippedTitle.first.name.toUpperCase() : displayName,
                       style: TextStyle(
                         color: equippedTitle.isNotEmpty ? getRarityColor(equippedTitle.first.rarity) : Colors.amber,
                         fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 4,
@@ -129,7 +165,7 @@ class _ProfileViewState extends ConsumerState<ProfileView> with SingleTickerProv
                           children: [
                             equippedBadge.first.imageUrl != null && equippedBadge.first.imageUrl!.isNotEmpty
                                 ? Image.network(
-                                    ApiService().getMediaUrl(equippedBadge.first.imageUrl!),
+                                    apiService.getMediaUrl(equippedBadge.first.imageUrl!),
                                     width: 14, height: 14, fit: BoxFit.contain,
                                     errorBuilder: (_, __, ___) => Icon(Icons.military_tech_rounded, color: getRarityColor(equippedBadge.first.rarity), size: 14),
                                   )
@@ -141,7 +177,10 @@ class _ProfileViewState extends ConsumerState<ProfileView> with SingleTickerProv
                       ),
                     ],
                     const SizedBox(height: 4),
-                    Text("GLOBAL RANK: #1 • ACTIVE TRADER", style: TextStyle(color: Colors.grey.shade400, fontSize: 12, fontWeight: FontWeight.bold)),
+                    Text(
+                      _username.isNotEmpty ? "@$_username" : "",
+                      style: TextStyle(color: Colors.grey.shade400, fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
                     Container(padding: const EdgeInsets.symmetric(vertical: 24), child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [_buildMetric("STEPS", "$steps", Colors.white), _buildMetric("COINS", "${coins.toStringAsFixed(1)}", Colors.amber), _buildMetric("ORBS", "$orbs", Colors.purpleAccent)])),
                     
                     Row(
@@ -155,7 +194,7 @@ class _ProfileViewState extends ConsumerState<ProfileView> with SingleTickerProv
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: _navTile(Icons.leaderboard_rounded, "RANKINGS", "Top 1%", Colors.purpleAccent, () => Navigator.push(context, MaterialPageRoute(builder: (context) => const LeaderboardPage()))),
+                          child: _navTile(Icons.leaderboard_rounded, "RANKINGS", "${_myBets.length} bets", Colors.purpleAccent, () => Navigator.push(context, MaterialPageRoute(builder: (context) => const LeaderboardPage()))),
                         ),
                       ],
                     ),
@@ -181,24 +220,92 @@ class _ProfileViewState extends ConsumerState<ProfileView> with SingleTickerProv
           body: TabBarView(
             controller: _tabController,
             children: [
-              ListView(
-                padding: const EdgeInsets.all(24),
-                children: [
-                  _buildSectionHeader("PAST BET RECORDS (STAKING)"),
-                  _buildHistoryCard("Tech Stocks Bull Run", "Win", "+124 Coins", Colors.greenAccent),
-                  _buildHistoryCard("Exam Week Predictor", "Loss", "-50 Coins", Colors.redAccent),
-                  _buildHistoryCard("Weekend Hackathon", "Pending", "Lock: 100", Colors.orangeAccent),
-                  const SizedBox(height: 24),
-                  _buildSectionHeader("GROUP CHALLENGES (PnL)"),
-                  _buildHistoryCard("Hostel A vs B Sprint", "Profit", "+1,200 Coins", Colors.greenAccent),
-                  _buildHistoryCard("CS vs IT Hackathon", "Profit", "+5,000 Coins & Elite Badge", Colors.purpleAccent),
-                  _buildHistoryCard("1st Year Steps Challenge", "Loss", "-300 Coins", Colors.redAccent),
-                ],
-              ),
+              _buildActivityTab(),
               _buildAchievementsList(achievementState),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildActivityTab() {
+    if (_loadingActivity) {
+      return const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF), strokeWidth: 2));
+    }
+
+    if (_transactions.isEmpty && _myBets.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.receipt_long_rounded, color: Colors.white.withOpacity(0.15), size: 54),
+            const SizedBox(height: 16),
+            Text("No activity yet", style: GoogleFonts.outfit(color: Colors.white30, fontSize: 18, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            Text("Your trades and bets will appear here.", style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _fetchProfileData,
+      color: const Color(0xFF00E5FF),
+      backgroundColor: const Color(0xFF1E1E1E),
+      child: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          if (_myBets.isNotEmpty) ...[
+            _buildSectionHeader("BET HISTORY"),
+            ..._myBets.map((bet) {
+              final question = bet['question'] ?? 'Unknown Bet';
+              final myChoice = (bet['myResponse'] ?? '').toString().toUpperCase();
+              final staked = bet['myCoins'] ?? 0;
+              final betStatus = (bet['status'] ?? '').toString().toLowerCase();
+              final betResult = (bet['result'] ?? '').toString().toUpperCase();
+              
+              String outcome;
+              Color accentColor;
+              String pnl;
+
+              if (betStatus == 'closed') {
+                // Compare user's response with the bet result
+                final didWin = myChoice == betResult;
+                if (didWin) {
+                  outcome = 'Won';
+                  accentColor = Colors.greenAccent;
+                  pnl = '+$staked CMX';
+                } else {
+                  outcome = 'Lost';
+                  accentColor = Colors.redAccent;
+                  pnl = '-$staked CMX';
+                }
+              } else {
+                outcome = 'Pending';
+                accentColor = Colors.orangeAccent;
+                pnl = 'Locked: $staked CMX';
+              }
+              
+              return _buildHistoryCard("$question ($myChoice)", outcome, pnl, accentColor);
+            }),
+            const SizedBox(height: 24),
+          ],
+          if (_transactions.isNotEmpty) ...[
+            _buildSectionHeader("RECENT TRANSACTIONS"),
+            ..._transactions.map((tx) {
+              final title = tx['title'] ?? 'Transaction';
+              final amount = tx['amount'] ?? 0;
+              final isPositive = tx['isPositive'] ?? false;
+              return _buildHistoryCard(
+                title,
+                isPositive ? "Credit" : "Debit",
+                "${isPositive ? '+' : '-'}$amount CMX",
+                isPositive ? Colors.greenAccent : Colors.redAccent,
+              );
+            }),
+          ],
+        ],
       ),
     );
   }
@@ -251,7 +358,7 @@ class _ProfileViewState extends ConsumerState<ProfileView> with SingleTickerProv
                     child: Opacity(
                       opacity: ach.isUnlocked ? 1.0 : 0.4,
                       child: Image.network(
-                        ApiService().getMediaUrl(ach.imageUrl!),
+                        apiService.getMediaUrl(ach.imageUrl!),
                         fit: BoxFit.contain,
                         errorBuilder: (_, __, ___) => Icon(Icons.stars_rounded, color: ach.isUnlocked ? Colors.amber : Colors.grey.shade700, size: 32),
                       ),

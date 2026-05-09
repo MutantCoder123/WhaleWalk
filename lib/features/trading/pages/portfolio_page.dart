@@ -37,7 +37,7 @@ class PortfolioPage extends ConsumerWidget {
         slivers: [
           SliverAppBar(
             toolbarHeight: 60,
-            expandedHeight: 60,
+            expandedHeight: 70,
             pinned: true,
             backgroundColor: Colors.transparent,
             elevation: 0,
@@ -151,7 +151,7 @@ class PortfolioPage extends ConsumerWidget {
         is1dPositive ? const Color(0xFF00D09C) : const Color(0xFFEB5B3C);
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: const Color(0xFF1E1E1E),
         borderRadius: BorderRadius.circular(16),
@@ -175,7 +175,7 @@ class PortfolioPage extends ConsumerWidget {
                   Text(currentTotal.toStringAsFixed(2),
                       style: GoogleFonts.robotoMono(
                           color: Colors.white,
-                          fontSize: 28,
+                          fontSize: 23,
                           fontWeight: FontWeight.bold)),
                 ],
               ),
@@ -195,7 +195,7 @@ class PortfolioPage extends ConsumerWidget {
                           "${isTotalPositive ? '+' : ''}${totalReturns.toStringAsFixed(2)}",
                           style: GoogleFonts.robotoMono(
                               color: retColor,
-                              fontSize: 18,
+                              fontSize: 16,
                               fontWeight: FontWeight.bold)),
                       const SizedBox(width: 4),
                       Text(

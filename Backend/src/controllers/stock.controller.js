@@ -14,7 +14,7 @@ import { matchOrdersForStock } from "../utils/orderMatcher.js";
 const getAllStocks = asyncHandler(async (req, res) => {
     const stocks = await Stock.find()
 
-    if (!stocks ) {
+    if (!stocks) {
         throw new ApiError(404, "No stocks found")
     }
 
@@ -42,39 +42,43 @@ const getUserStocks = asyncHandler(async (req, res) => {
     const userStocks = await UserStocks.find({ username, quantity: { $gt: 0 } })
 
     if (!userStocks || userStocks.length === 0) {
-        throw new ApiError(404, "No stocks found in portfolio")
+        return res
+            .status(200)
+            .json(new ApiResponse(200, [], "No stocks in portfolio"))
     }
 
     const portfolio = await Promise.all(userStocks.map(async (uStock) => {
         const stock = await Stock.findOne({ stockId: uStock.stockId });
         let percentageGain = 0;
         let avgPriceToUse = uStock.avgPrice;
-        
+
         // Fallback for older records missing avgPrice
         if (!avgPriceToUse) {
-            const lastTrade = await StockTrade.findOne({ 
-                username, 
-                stockId: uStock.stockId, 
-                type: 'buy', 
-                status: 'executed' 
+            const lastTrade = await StockTrade.findOne({
+                username,
+                stockId: uStock.stockId,
+                type: 'buy',
+                status: 'executed'
             }).sort({ createdAt: -1 });
-            
+
             if (lastTrade) {
                 avgPriceToUse = lastTrade.limitPrice;
                 // Opportunistically fix the record in background without waiting
                 UserStocks.updateOne({ _id: uStock._id }, { $set: { avgPrice: avgPriceToUse } }).exec();
             }
         }
-        
+
         if (stock && avgPriceToUse && avgPriceToUse > 0) {
             percentageGain = ((stock.price - avgPriceToUse) / avgPriceToUse) * 100;
         }
 
         return {
             stockId: uStock.stockId,
+            name: stock?.name ?? uStock.stockId,
             quantity: uStock.quantity,
             avgPrice: avgPriceToUse || stock?.price || 0,
             currentPrice: stock ? stock.price : (avgPriceToUse || 0),
+            previousPrice: stock?.previousPrice ?? stock?.price ?? 0,
             percentageGain: parseFloat(percentageGain.toFixed(2))
         };
     }));
@@ -152,9 +156,9 @@ const placeOrder = asyncHandler(async (req, res) => {
         // impact = (qty / total_shares) -> e.g. buying 1% of float = 1% price increase
         const impact = (quantity / (stock.sharesct || 10000));
         const newPrice = stock.price * (1 + impact);
-        
-        await Stock.findByIdAndUpdate(stock._id, { 
-            $set: { price: newPrice, previousPrice: stock.price } 
+
+        await Stock.findByIdAndUpdate(stock._id, {
+            $set: { price: newPrice, previousPrice: stock.price }
         });
 
         await Wallet.findOneAndUpdate(
@@ -163,7 +167,7 @@ const placeOrder = asyncHandler(async (req, res) => {
         )
         // Update UserStocks
         const existingStock = await UserStocks.findOne({ username, stockId });
-        
+
         if (existingStock) {
             const oldTotalCost = existingStock.quantity * existingStock.avgPrice;
             const newTotalCost = quantity * limitPrice;
@@ -171,7 +175,7 @@ const placeOrder = asyncHandler(async (req, res) => {
 
             await UserStocks.findOneAndUpdate(
                 { username, stockId },
-                { 
+                {
                     $inc: { quantity },
                     $set: { avgPrice: newAvgPrice }
                 },
@@ -196,8 +200,8 @@ const placeOrder = asyncHandler(async (req, res) => {
         const impact = (quantity / (stock.sharesct || 10000));
         const newPrice = Math.max(0.01, stock.price * (1 - impact));
 
-        await Stock.findByIdAndUpdate(stock._id, { 
-            $set: { price: newPrice, previousPrice: stock.price } 
+        await Stock.findByIdAndUpdate(stock._id, {
+            $set: { price: newPrice, previousPrice: stock.price }
         });
 
         await Wallet.findOneAndUpdate(
@@ -238,10 +242,10 @@ const placeOrder = asyncHandler(async (req, res) => {
     // Try to match the newly placed order
     if (orderStatus === 'pending') {
         await matchOrdersForStock(stockId);
-        
+
         // Fetch the updated order state after matching has occurred
         const updatedOrder = await StockTrade.findById(order._id);
-        
+
         return res
             .status(200)
             .json(new ApiResponse(200, updatedOrder, `${type.toUpperCase()} order processed`))
@@ -305,7 +309,7 @@ const createStock = asyncHandler(async (req, res) => {
 
 const deleteStock = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    
+
     const stock = await Stock.findById(id);
     if (!stock) {
         throw new ApiError(404, "Stock not found");
@@ -319,7 +323,7 @@ const deleteStock = asyncHandler(async (req, res) => {
     // 2. Refund each user and log transactions
     for (const holding of userHoldings) {
         const refundAmount = holding.quantity * price;
-        
+
         // Update Wallet
         await Wallet.findOneAndUpdate(
             { username: holding.username },
@@ -348,4 +352,4 @@ const deleteStock = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, stock, `Stock ${name} deleted and users refunded successfully`));
 });
 
-export { getAllStocks, getUserStocks, placeOrder, getMyOrders, getCompletedOrders , createStock, deleteStock}
+export { getAllStocks, getUserStocks, placeOrder, getMyOrders, getCompletedOrders, createStock, deleteStock }

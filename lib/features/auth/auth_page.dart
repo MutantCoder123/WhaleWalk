@@ -93,17 +93,30 @@ class _AuthPageState extends ConsumerState<AuthPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 58,
-          height: 58,
+          width: 80,
+          height: 80,
           decoration: BoxDecoration(
-            color: const Color(0xFFFF5722),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFF5722).withOpacity(0.2),
+                blurRadius: 15,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-          child: const Icon(Icons.currency_exchange_rounded, color: Colors.white),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: Image.asset(
+              'assets/images/logo.png',
+              fit: BoxFit.contain,
+            ),
+          ),
         ),
         const SizedBox(height: 20),
         Text(
-          'Campus Exchange',
+          'WhaleWalk',
           style: GoogleFonts.lexend(
             color: Colors.white,
             fontSize: 32,

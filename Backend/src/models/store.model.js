@@ -22,6 +22,11 @@ const storeSchema = new Schema(
             enum: ['badge', 'title', 'theme'],
             required: true,
         },
+        rarity: {
+            type: String,
+            enum: ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'],
+            default: 'common',
+        },
         imageUrl: {
             type: String, 
         },

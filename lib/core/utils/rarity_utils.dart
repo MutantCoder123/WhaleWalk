@@ -23,8 +23,8 @@ Color getRarityColor(String rarity) {
   }
 }
 
-/// Returns a BoxDecoration with a mild neon glow border for the given rarity.
-/// [borderRadius] defaults to 16. [isEquipped] intensifies the glow slightly.
+/// Returns a BoxDecoration with a visible neon glow border for the given rarity.
+/// [borderRadius] defaults to 16. [isEquipped] intensifies the glow.
 BoxDecoration rarityGlowDecoration({
   required String rarity,
   double borderRadius = 16,
@@ -32,25 +32,32 @@ BoxDecoration rarityGlowDecoration({
   Color? backgroundColor,
 }) {
   final color = getRarityColor(rarity);
-  final glowOpacity = isEquipped ? 0.45 : 0.25;
-  final borderOpacity = isEquipped ? 0.7 : 0.4;
+  final isCommon = rarity.toLowerCase() == 'common';
 
   return BoxDecoration(
     color: backgroundColor ?? Color.alphaBlend(
-      color.withOpacity(0.06),
+      color.withOpacity(isCommon ? 0.04 : 0.10),
       const Color(0xFF16171B),
     ),
     borderRadius: BorderRadius.circular(borderRadius),
     border: Border.all(
-      color: color.withOpacity(borderOpacity),
-      width: isEquipped ? 1.5 : 1.0,
+      color: color.withOpacity(isEquipped ? 0.85 : 0.55),
+      width: isEquipped ? 2.0 : 1.5,
     ),
     boxShadow: [
+      // Inner concentrated glow
       BoxShadow(
-        color: color.withOpacity(glowOpacity),
-        blurRadius: isEquipped ? 16 : 10,
-        spreadRadius: isEquipped ? -2 : -4,
+        color: color.withOpacity(isEquipped ? 0.55 : 0.35),
+        blurRadius: isEquipped ? 12 : 8,
+        spreadRadius: 0,
       ),
+      // Outer diffuse glow (skip for common rarity)
+      if (!isCommon)
+        BoxShadow(
+          color: color.withOpacity(isEquipped ? 0.30 : 0.15),
+          blurRadius: isEquipped ? 24 : 16,
+          spreadRadius: 1,
+        ),
     ],
   );
 }
@@ -62,13 +69,13 @@ BoxDecoration rarityCircleGlow({
 }) {
   final color = getRarityColor(rarity);
   return BoxDecoration(
-    color: color.withOpacity(0.08),
+    color: color.withOpacity(0.12),
     shape: BoxShape.circle,
     boxShadow: [
       BoxShadow(
-        color: color.withOpacity(isEquipped ? 0.35 : 0.2),
-        blurRadius: 18,
-        spreadRadius: -2,
+        color: color.withOpacity(isEquipped ? 0.50 : 0.30),
+        blurRadius: 20,
+        spreadRadius: 1,
       ),
     ],
   );

@@ -404,7 +404,7 @@ class _AdminViewState extends ConsumerState<AdminView> {
                         style: GoogleFonts.outfit(
                           color: isOpen ? Colors.greenAccent : Colors.redAccent,
                           fontWeight: FontWeight.bold,
-                          fontSize: 18,
+                          fontSize: 12,
                         ),
                       ),
                     ],
@@ -413,18 +413,18 @@ class _AdminViewState extends ConsumerState<AdminView> {
               ),
               ElevatedButton.icon(
                 onPressed: () => _updateMarketStatus(isOpen ? 'CLOSED' : 'OPEN'),
-                icon: Icon(isOpen ? Icons.lock : Icons.lock_open, size: 18),
+                icon: Icon(isOpen ? Icons.lock : Icons.lock_open, size: 10),
                 label: Text(isOpen ? "CLOSE MARKET" : "OPEN MARKET"),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: isOpen ? Colors.redAccent : Colors.greenAccent,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 15),
           Text(
             isOpen
                 ? "Market is live. Prices are fluctuating and users can place orders."

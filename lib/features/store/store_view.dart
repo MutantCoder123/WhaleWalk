@@ -14,6 +14,7 @@ class StoreView extends ConsumerStatefulWidget {
 }
 
 class _StoreViewState extends ConsumerState<StoreView> {
+  final apiService = ApiService();
   // Using shared getRarityColor() from rarity_utils.dart
 
   IconData _categoryIcon(String category) {
@@ -243,7 +244,7 @@ class _StoreViewState extends ConsumerState<StoreView> {
   }
 
   Widget _buildTitleCard(StoreItem item) {
-    final rarityColor = _getRarityColor(item.rarity);
+    final rarityColor = getRarityColor(item.rarity);
 
     return GestureDetector(
       onTap: () => _showPurchaseDialog(item),

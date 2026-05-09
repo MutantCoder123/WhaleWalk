@@ -64,20 +64,20 @@ class _ChallengesPageState extends ConsumerState<ChallengesPage> with SingleTick
 
   Widget _buildHeader(BuildContext context) {
     return Container(
-      height: 60,
+      height: 90,
       decoration: BoxDecoration(
         color: const Color(0xFF101010).withOpacity(0.8),
       ),
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 0),
           child: Row(
             children: [
               GestureDetector(
                 onTap: () => mainScaffoldKey.currentState?.openDrawer(),
                 child: const Icon(Icons.sort_rounded, color: Colors.white, size: 24),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 30),
               Text(
                 "CHALLENGES",
                 style: GoogleFonts.lexend(

@@ -16,11 +16,28 @@ class BetPage extends ConsumerStatefulWidget {
 class _BetPageState extends ConsumerState<BetPage> {
   List<Map<String, dynamic>> _myBets = [];
   bool _loadingMyBets = true;
+  late final _refreshTimer = Stream.periodic(const Duration(seconds: 30));
+  bool _disposed = false;
 
   @override
   void initState() {
     super.initState();
     _fetchMyBets();
+    // Auto-refresh every 30s to pick up admin resolutions
+    _refreshTimer.listen((_) {
+      if (!_disposed) _refreshAll();
+    });
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  Future<void> _refreshAll() async {
+    ref.read(challengesProvider.notifier).refresh();
+    await _fetchMyBets();
   }
 
   Future<void> _fetchMyBets() async {
@@ -83,6 +100,11 @@ class _BetPageState extends ConsumerState<BetPage> {
                           letterSpacing: 1.5,
                           color: Colors.white,
                         ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.refresh, color: Colors.white54, size: 18),
+                        onPressed: _refreshAll,
                       ),
                     ],
                   ),
@@ -213,18 +235,17 @@ class _PoolCard extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Expanded(
+                      Flexible(
                         child: Text(
                           bet.title,
                           style: GoogleFonts.montserrat(
                             fontWeight: FontWeight.w900,
-                            fontSize: 18,
+                            fontSize: 13,
                             color: Colors.white,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      const SizedBox(width: 8),
                       if (isEnrolled)
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),

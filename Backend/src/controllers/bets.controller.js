@@ -6,6 +6,8 @@ import { Enroll } from "../models/enroll.model.js";
 import { Wallet } from "../models/wallet.model.js";
 import { UserStats } from "../models/userStats.model.js";
 import { checkAndUnlockAchievements } from "../utils/achievement.utils.js";
+import { Transaction } from "../models/transaction.model.js";
+import { User } from "../models/user.model.js";
 
 const getallBet = asyncHandler(async (req, res) => {
     const bets = await Bet.find()
@@ -71,6 +73,17 @@ const enrolluser = asyncHandler(async (req, res) => {
         { username },
         { $inc: { campusCoins: -campusCoins } }
     )
+    
+    // Log transaction
+    const userForId = await User.findOne({ username });
+    if (userForId) {
+        await Transaction.create({
+            userId: userForId._id,
+            title: `Staked in Bet: ${bet.question}`,
+            amount: campusCoins,
+            isPositive: false
+        });
+    }
 
     // update bet stats — also track pool per side
     const poolUpdate = response.toLowerCase() === 'yes'
@@ -211,6 +224,17 @@ const resolveBet = asyncHandler(async (req, res) => {
                     { $inc: { campusCoins: payout } },
                     { new: true }
                 )
+                
+                // Log transaction
+                const userForIdResolve = await User.findOne({ username: enroll.username });
+                if (userForIdResolve) {
+                    await Transaction.create({
+                        userId: userForIdResolve._id,
+                        title: `Staking Payout: ${bet.question}`,
+                        amount: payout,
+                        isPositive: true
+                    });
+                }
                 
                 if (!walletUpdate) {
                     console.error(`[ResolveBet] FAILED to find wallet for ${enroll.username}`);

@@ -1,0 +1,2 @@
+indranil@MUTANTlinux:~/WhaleWalk$ git remote set-url origin https://github.com/MutantCoder123/WhaleWalk.git
+error: No such remote 'origin'

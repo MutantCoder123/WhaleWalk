@@ -10,6 +10,7 @@ const specialBadges = [
         description: "Unlocked by earning 5 achievements.",
         price: 0,
         category: "badge",
+        rarity: "rare",
         imageUrl: "media/images/t1badge.png",
         isPurchasable: false
     },
@@ -18,6 +19,7 @@ const specialBadges = [
         description: "Unlocked by earning 15 achievements.",
         price: 0,
         category: "badge",
+        rarity: "epic",
         imageUrl: "media/images/t2badge.png",
         isPurchasable: false
     },
@@ -26,6 +28,7 @@ const specialBadges = [
         description: "Unlocked by earning 30 achievements.",
         price: 0,
         category: "badge",
+        rarity: "legendary",
         imageUrl: "media/images/t3badge.png",
         isPurchasable: false
     }

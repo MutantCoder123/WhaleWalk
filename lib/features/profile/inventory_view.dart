@@ -16,6 +16,7 @@ class InventoryView extends ConsumerStatefulWidget {
 class _InventoryViewState extends ConsumerState<InventoryView>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final apiService = ApiService();
   final List<String> _categories = ['All', 'Badges', 'Titles', 'Themes'];
 
   @override
@@ -362,7 +363,7 @@ class _InventoryViewState extends ConsumerState<InventoryView>
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(22),
                         child: Image.network(
-                          ApiService().getMediaUrl(item.imageUrl!),
+                          apiService.getMediaUrl(item.imageUrl!),
                           fit: BoxFit.contain,
                           errorBuilder: (_, __, ___) =>
                               Icon(icon, color: rarityColor, size: 20),
@@ -501,7 +502,7 @@ class _InventoryViewState extends ConsumerState<InventoryView>
                           ? ClipRRect(
                               borderRadius: BorderRadius.circular(23),
                               child: Image.network(
-                                ApiService().getMediaUrl(item.imageUrl!),
+                                apiService.getMediaUrl(item.imageUrl!),
                                 fit: BoxFit.contain,
                                 errorBuilder: (_, __, ___) => Icon(icon, color: color, size: 40),
                               ),

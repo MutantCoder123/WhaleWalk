@@ -540,27 +540,19 @@ class PortfolioNotifier extends StateNotifier<List<PortfolioHolding>> {
 
   Future<void> _fetchLive() async {
     try {
-      // Portfolio gives [{stockId, quantity}]
+      // Backend now returns enriched portfolio with name, currentPrice, previousPrice
       final portfolioData = await apiService.getPortfolio();
-      // Stocks give current prices
-      final stockData = await apiService.fetchStocks();
-
-      final stockMap = <String, dynamic>{};
-      for (final s in stockData) {
-        stockMap[s['stockId']] = s;
-      }
 
       state = portfolioData
           .where((p) => (p['quantity'] ?? 0) > 0)
           .map<PortfolioHolding>((p) {
-        final stock = stockMap[p['stockId']];
         return PortfolioHolding(
           stockId: p['stockId'],
           quantity: (p['quantity'] ?? 0).toInt(),
-          name: stock?['name'] ?? p['stockId'],
-          currentPrice: (stock?['price'] ?? 0.0).toDouble(),
-          previousPrice: (stock?['previousPrice'] ?? 0.0).toDouble(),
-          avgPrice: (p['avgPrice'] ?? stock?['price'] ?? 0.0).toDouble(),
+          name: p['name'] ?? p['stockId'],
+          currentPrice: (p['currentPrice'] ?? 0.0).toDouble(),
+          previousPrice: (p['previousPrice'] ?? p['currentPrice'] ?? 0.0).toDouble(),
+          avgPrice: (p['avgPrice'] ?? p['currentPrice'] ?? 0.0).toDouble(),
         );
       }).toList();
     } catch (e) {

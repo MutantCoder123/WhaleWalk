@@ -9,6 +9,7 @@ import 'features/profile/profile_view.dart';
 import 'features/profile/leaderboard_page.dart';
 import 'features/admin/admin_view.dart';
 import 'features/trading/pages/wallet_page.dart';
+import 'features/auth/splash_screen.dart';
 import 'dart:math' as math;
 
 void main() {
@@ -22,11 +23,11 @@ class CampusExchangeApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Campus Exchange',
+      title: 'WhaleWalk',
       theme: ThemeData(
         useMaterial3: true,
       ),
-      home: const AuthGate(),
+      home: const SplashScreen(),
     );
   }
 }
@@ -149,11 +150,30 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> with SingleTickerPr
           children: [
             DrawerHeader(
               decoration: BoxDecoration(color: mode == AppMode.trading ? const Color(0xFF2962FF) : const Color(0xFFFF5722)),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 children: [
-                  const Text("CAMPUS EXCHANGE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)),
-                  Text("v1.4.0", style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12)),
+                   Container(
+                    width: 65,
+                    height: 65,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.asset('assets/images/logo.png', fit: BoxFit.contain),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text("WHALE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18, height: 1)),
+                      const Text("WALK", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18, height: 1)),
+                      Text("v1.4.0", style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12)),
+                    ],
+                  ),
                 ],
               ),
             ),

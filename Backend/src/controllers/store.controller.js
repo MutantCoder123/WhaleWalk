@@ -4,6 +4,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { StoreItem } from "../models/store.model.js";
 import { User } from "../models/user.model.js";
 import { Wallet } from "../models/wallet.model.js";
+import { Transaction } from "../models/transaction.model.js";
 
 const getStoreItems = asyncHandler(async (req, res) => {
     const items = await StoreItem.find({ isActive: true, isPurchasable: true });
@@ -44,6 +45,14 @@ const buyItem = asyncHandler(async (req, res) => {
     // Deduct coins and add to inventory
     wallet.campusCoins -= item.price;
     await wallet.save();
+
+    // Log transaction
+    await Transaction.create({
+        userId,
+        title: `Store Purchase: ${item.name}`,
+        amount: item.price,
+        isPositive: false
+    });
 
     await user.addToInventory(item._id);
 
